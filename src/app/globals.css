@@ -3,71 +3,80 @@
 @tailwind utilities;
 
 :root {
-  --background: #323437;
-  --foreground: #d1d0c5;
+  --background: #0f172a;
+  --foreground: #f8fafc;
+  --card-bg: rgba(15, 23, 42, 0.7);
+  --card-border: rgba(255, 255, 255, 0.08);
   --primary: #e2b714;
-  --error: #d9534f;
+  --primary-glow: rgba(226, 183, 20, 0.35);
+  --secondary: #06b6d4;
+  --secondary-glow: rgba(6, 182, 212, 0.35);
+  --error: #ef4444;
+  --success: #10b981;
   --caret: #e2b714;
 }
 
 body {
   background-color: var(--background);
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(226, 183, 20, 0.07) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(6, 182, 212, 0.07) 0px, transparent 50%);
+  background-attachment: fixed;
   color: var(--foreground);
   font-family: 'Inter', sans-serif;
+  min-height: 100vh;
 }
 
 .glass-card {
-  background-color: rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 1rem;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  background: var(--card-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--card-border);
+  border-radius: 1.25rem;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
 }
 
-.typing-word {
-  display: inline-block;
-  margin-right: 0.5em;
-  margin-bottom: 0.5em;
+.glass-input {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--foreground);
+  transition: all 0.2s ease-in-out;
 }
 
-.typing-letter {
-  color: #646669;
+.glass-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 15px var(--primary-glow);
+  outline: none;
 }
 
-.typing-letter.correct {
-  color: #d1d0c5;
+.glow-gold {
+  box-shadow: 0 0 25px var(--primary-glow);
 }
 
-.typing-letter.incorrect {
-  color: #d9534f;
+.glow-cyan {
+  box-shadow: 0 0 25px var(--secondary-glow);
 }
 
-.typing-letter.extra {
-  color: #792e2d;
-}
-
-#caret {
-  position: absolute;
-  width: 2px;
-  height: 1.5em;
-  background-color: var(--caret);
-  animation: blink 1s step-start infinite;
-  transition: all 0.1s ease;
-}
-
-@keyframes blink {
+/* Caret blinking animation */
+@keyframes caretBlink {
+  0%, 100% { opacity: 1; }
   50% { opacity: 0; }
 }
 
-/* Hide scrollbar for clean UI */
+.animate-caret {
+  animation: caretBlink 1s step-start infinite;
+}
+
+/* Custom scrollbars */
 ::-webkit-scrollbar {
   width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
   background: var(--background);
 }
 ::-webkit-scrollbar-thumb {
-  background: #646669;
+  background: rgba(255, 255, 255, 0.15);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
