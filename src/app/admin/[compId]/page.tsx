@@ -36,32 +36,70 @@ export default function CompetitionManage({ params }: { params: { compId: string
         if (doc.exists()) setComp({ id: doc.id, ...doc.data() } as Competition);
       });
 
-      // Fetch Participants live with debounced sorting for high concurrency
+      // Fetch Participants live with throttled updates for high concurrency and stable sorting
       const q = query(collection(db, `competitions/${params.compId}/participants`));
+      
+      let lastUpdateTime = 0;
+      let pendingData: Participant[] | null = null;
+      let throttleTimeout: NodeJS.Timeout | null = null;
+
       const unsubscribeParts = onSnapshot(q, (snapshot) => {
         const pData: Participant[] = [];
         snapshot.forEach(d => pData.push({ id: d.id, ...d.data() } as Participant));
         
-        // Sort leaderboard (Completed high WPM first)
+        // Robust and stable sorting (Completed first with high WPM/accuracy, then Disqualified, then Pending by Roll Number)
         pData.sort((a, b) => {
-          if (!a.score) return 1;
-          if (!b.score) return -1;
-          if (b.score.wpm !== a.score.wpm) return b.score.wpm - a.score.wpm;
-          return b.score.accuracy - a.score.accuracy;
+          const statusOrder = { Completed: 1, Disqualified: 2, Pending: 3 };
+          const aStatus = statusOrder[a.status] || 3;
+          const bStatus = statusOrder[b.status] || 3;
+          if (aStatus !== bStatus) return aStatus - bStatus;
+
+          const aWpm = a.score?.wpm || 0;
+          const bWpm = b.score?.wpm || 0;
+          if (bWpm !== aWpm) return bWpm - aWpm;
+
+          const aAcc = a.score?.accuracy || 0;
+          const bAcc = b.score?.accuracy || 0;
+          if (bAcc !== aAcc) return bAcc - aAcc;
+
+          return a.rollNo.localeCompare(b.rollNo);
         });
 
-        // Throttle state updates to every 1.2 seconds to prevent DOM re-render lag during peak 80+ student submissions
-        if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-        debounceTimerRef.current = setTimeout(() => {
+        const now = Date.now();
+        const timeSinceLastUpdate = now - lastUpdateTime;
+
+        const performUpdate = () => {
           setParticipants(pData);
           setLoading(false);
-        }, 1200);
+          lastUpdateTime = Date.now();
+          if (throttleTimeout) {
+            clearTimeout(throttleTimeout);
+            throttleTimeout = null;
+          }
+        };
+
+        if (timeSinceLastUpdate >= 1500) {
+          performUpdate();
+        } else {
+          pendingData = pData;
+          if (!throttleTimeout) {
+            throttleTimeout = setTimeout(() => {
+              if (pendingData) {
+                setParticipants(pendingData);
+                setLoading(false);
+                lastUpdateTime = Date.now();
+                pendingData = null;
+              }
+              throttleTimeout = null;
+            }, 1500 - timeSinceLastUpdate);
+          }
+        }
       });
 
       return () => { 
         unsubscribeComp(); 
         unsubscribeParts(); 
-        if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+        if (throttleTimeout) clearTimeout(throttleTimeout);
       };
     }
   }, [params.compId, isAuthenticated, isAuthLoading, router]);

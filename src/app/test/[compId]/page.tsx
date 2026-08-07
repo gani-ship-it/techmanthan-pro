@@ -76,7 +76,7 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
           router.push('/');
           return;
         }
-        const c = compSnap.data() as Competition;
+        const c = { id: compSnap.id, ...compSnap.data() } as Competition;
         setComp(c);
         setTimeLeft(c.duration);
 
