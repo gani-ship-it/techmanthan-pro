@@ -187,8 +187,9 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
 
       {/* Registration Verification Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="glass-card w-full max-w-md p-8 relative border border-primary/30 shadow-2xl animate-fadeIn">
+        <div className="fixed inset-0 bg-slate-950/95 backdrop-blur-xl z-[100] flex items-center justify-center p-4">
+          <div className="glass-card w-full max-w-md p-8 relative border border-primary/30 shadow-2xl animate-fadeIn bg-slate-900/90">
+
             <button 
               onClick={() => setShowModal(false)} 
               className="absolute top-4 right-4 text-foreground/50 hover:text-red-400 transition-colors p-1"

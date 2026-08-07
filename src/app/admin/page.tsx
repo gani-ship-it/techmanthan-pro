@@ -233,8 +233,9 @@ export default function AdminDashboard() {
 
       {/* Host New Competition Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6">
-          <div className="glass-card w-full max-w-2xl p-6 sm:p-8 relative border border-primary/30 shadow-2xl max-h-[90vh] flex flex-col my-auto animate-fadeIn">
+        <div className="fixed inset-0 bg-slate-950/95 backdrop-blur-xl z-[100] flex items-center justify-center p-4 sm:p-6 overflow-hidden">
+          <div className="glass-card w-full max-w-2xl p-6 sm:p-8 relative border border-primary/40 shadow-2xl max-h-[90vh] flex flex-col my-auto animate-fadeIn bg-slate-900/90">
+
             <button 
               onClick={() => setShowModal(false)} 
               className="absolute top-4 right-4 text-foreground/50 hover:text-red-400 transition-colors p-1 z-10"
