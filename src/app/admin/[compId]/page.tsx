@@ -47,7 +47,7 @@ export default function CompetitionManage({ params }: { params: { compId: string
         const pData: Participant[] = [];
         snapshot.forEach(d => pData.push({ id: d.id, ...d.data() } as Participant));
         
-        // Robust and stable sorting (Completed first with high WPM/accuracy, then Disqualified, then Pending by Roll Number)
+        // Robust and stable sorting (Completed first with high WPM/accuracy, then multi-tier tie-breakers: errors, time spent, submittedAt, then Disqualified, then Pending by Roll Number)
         pData.sort((a, b) => {
           const statusOrder = { Completed: 1, Disqualified: 2, Pending: 3 };
           const aStatus = statusOrder[a.status] || 3;
@@ -61,6 +61,21 @@ export default function CompetitionManage({ params }: { params: { compId: string
           const aAcc = a.score?.accuracy || 0;
           const bAcc = b.score?.accuracy || 0;
           if (bAcc !== aAcc) return bAcc - aAcc;
+
+          // Tie-breaker 1: Fewer Errors (Lower is better)
+          const aErrors = a.score?.errors || 0;
+          const bErrors = b.score?.errors || 0;
+          if (aErrors !== bErrors) return aErrors - bErrors;
+
+          // Tie-breaker 2: Less Time taken (Lower is better)
+          const aTime = a.score?.time || 99999;
+          const bTime = b.score?.time || 99999;
+          if (aTime !== bTime) return aTime - bTime;
+
+          // Tie-breaker 3: Completed chronologically first (Earlier submittedAt is better)
+          const aStamp = a.score?.submittedAt || Infinity;
+          const bStamp = b.score?.submittedAt || Infinity;
+          if (aStamp !== bStamp) return aStamp - bStamp;
 
           return a.rollNo.localeCompare(b.rollNo);
         });

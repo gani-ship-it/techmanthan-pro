@@ -5,6 +5,26 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Competition, Participant } from '@/types';
 import { useRouter } from 'next/navigation';
+import { Clock, Play, AlertTriangle, ShieldAlert, CheckCircle2, RotateCcw, Activity, Award } from 'lucide-react';
+
+const playAudioTone = (freq: number, type: OscillatorType, duration: number) => {
+  if (typeof window === 'undefined') return;
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.12, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + duration);
+  } catch (e) {
+    console.warn("Audio Context blocked or unsupported:", e);
+  }
+};
 
 export default function TypingTestEngine({ params }: { params: { compId: string } }) {
   const router = useRouter();
@@ -19,24 +39,31 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
   const [isDisqualified, setIsDisqualified] = useState(false);
   const [showWarning, setShowWarning] = useState(false);
 
-  // Typing Render State (Updated via RAF / Batched state)
+  // Typing Render State
   const [words, setWords] = useState<string[]>([]);
   const [activeWordIndex, setActiveWordIndex] = useState(0);
   const [inputVal, setInputVal] = useState('');
 
-  // Stats State
+  // Countdown State
+  const [isCountingDown, setIsCountingDown] = useState(false);
+  const [countdown, setCountdown] = useState(3);
+
+  // Live Telemetry Stats (Updated reactively in real time)
+  const [liveWpm, setLiveWpm] = useState(0);
+  const [liveAccuracy, setLiveAccuracy] = useState(100);
+  const [liveErrors, setLiveErrors] = useState(0);
   const [timeLeft, setTimeLeft] = useState(60);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
   const [isTestRunning, setIsTestRunning] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
-  const [errors, setErrors] = useState(0);
-  const [correctChars, setCorrectChars] = useState(0);
 
   // Offline & Recovery State
   const [isOfflineSaved, setIsOfflineSaved] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncSuccess, setSyncSuccess] = useState(false);
 
-  // High-Performance Mutable References (0ms Input Lag Buffer)
+  // High-Performance Mutable References
   const inputValRef = useRef('');
   const activeWordIndexRef = useRef(0);
   const correctCharsRef = useRef(0);
@@ -95,7 +122,6 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
           }
           p = pData;
         } else {
-          // Construct participant from valid session data
           p = {
             id: session.rollNo,
             rollNo: session.rollNo,
@@ -161,8 +187,9 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
     isFinishedRef.current = true;
 
     const now = Date.now();
+    const durationLimit = comp.duration === 0 ? 99999 : comp.duration;
     const timeSpent = startTimeRef.current 
-      ? Math.max(1, Math.min(comp.duration, Math.round((now - startTimeRef.current) / 1000)))
+      ? Math.max(1, Math.min(durationLimit, Math.round((now - startTimeRef.current) / 1000)))
       : 1;
 
     const finalCorrect = correctCharsRef.current;
@@ -204,6 +231,8 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
     }));
 
     try {
+      playAudioTone(880, 'sine', 0.25);
+      setTimeout(() => playAudioTone(1100, 'sine', 0.4), 250);
       const pRef = doc(db, `competitions/${comp.id}/participants`, participant.rollNo);
       await setDoc(pRef, finalData, { merge: true });
       localStorage.removeItem('techmanthan_pending_score');
@@ -222,6 +251,7 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
     setWarnings(prev => {
       const nextWarnings = prev + 1;
       setShowWarning(true);
+      playAudioTone(180, 'sawtooth', 0.4);
       setTimeout(() => setShowWarning(false), 3000);
 
       // Async sync warning to DB without blocking typing engine
@@ -280,41 +310,67 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
     submitScore(false);
   }, [submitScore]);
 
-  // 6. Zero-Latency Keystroke Handler (useRef Driven)
+  // Starts the interactive countdown sequence
+  const startCountdown = () => {
+    if (!comp) return;
+    setIsCountingDown(true);
+    let count = 3;
+    setCountdown(3);
+    playAudioTone(520, 'sine', 0.15);
+
+    const interval = setInterval(() => {
+      count -= 1;
+      if (count === 0) {
+        setCountdown(0);
+        playAudioTone(1040, 'triangle', 0.45);
+      } else if (count < 0) {
+        clearInterval(interval);
+        setIsCountingDown(false);
+        setIsTestRunning(true);
+        isTestRunningRef.current = true;
+        startTimeRef.current = Date.now();
+        setTimeout(() => inputRef.current?.focus(), 50);
+
+        // Core ticking timer thread
+        timerRef.current = setInterval(() => {
+          const now = Date.now();
+          const elapsed = Math.round((now - startTimeRef.current!) / 1000);
+          setElapsedSeconds(elapsed);
+
+          if (comp.duration > 0) {
+            setTimeLeft((prev) => {
+              if (prev <= 1) {
+                if (timerRef.current) clearInterval(timerRef.current);
+                handleFinish();
+                return 0;
+              }
+              return prev - 1;
+            });
+          }
+        }, 1000);
+      } else {
+        setCountdown(count);
+        playAudioTone(520, 'sine', 0.15);
+      }
+    }, 1000);
+  };
+
+  // 6. Zero-Latency Keystroke Handler
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (isFinishedRef.current || isDisqualifiedRef.current) return;
-
-    // Start timer & timestamp on first keystroke
-    if (!isTestRunningRef.current) {
-      isTestRunningRef.current = true;
-      startTimeRef.current = Date.now();
-      setIsTestRunning(true);
-
-      timerRef.current = setInterval(() => {
-        setTimeLeft((prev) => {
-          if (prev <= 1) {
-            if (timerRef.current) clearInterval(timerRef.current);
-            handleFinish();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
 
     const currentWord = wordsRef.current[activeWordIndexRef.current];
     if (!currentWord) return;
 
     if (e.key === 'Backspace') {
-      // Allow backspace within current word
       return;
     }
 
     if (e.key.length === 1) {
       if (e.key === ' ') {
-        // Spacebar checks word match
         if (inputValRef.current !== currentWord) {
-          e.preventDefault(); // Block space if word incomplete/incorrect
+          e.preventDefault();
+          playAudioTone(180, 'sawtooth', 0.1);
         } else {
           e.preventDefault();
           activeWordIndexRef.current += 1;
@@ -323,7 +379,7 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
           setActiveWordIndex(activeWordIndexRef.current);
           setInputVal('');
 
-          // Check if passage complete
+          // Auto-submit if all words completely typed
           if (activeWordIndexRef.current >= wordsRef.current.length) {
             handleFinish();
           }
@@ -333,11 +389,20 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
         if (e.key !== expectedChar) {
           e.preventDefault();
           errorsRef.current += 1;
-          setErrors(errorsRef.current);
+          setLiveErrors(errorsRef.current);
+          playAudioTone(180, 'sawtooth', 0.1);
         } else {
           correctCharsRef.current += 1;
-          setCorrectChars(correctCharsRef.current);
+          playAudioTone(880, 'sine', 0.04);
         }
+
+        // Live stats computation
+        const elapsed = startTimeRef.current ? Math.max(1, Math.round((Date.now() - startTimeRef.current) / 1000)) : 1;
+        const currentCorrect = correctCharsRef.current;
+        const currentErrors = errorsRef.current;
+        
+        setLiveWpm(Math.round((currentCorrect / 5) / (elapsed / 60)));
+        setLiveAccuracy(currentCorrect + currentErrors > 0 ? Math.round((currentCorrect / (currentCorrect + currentErrors)) * 100) : 100);
       }
     }
   };
@@ -350,11 +415,25 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
 
   const preventCheat = (e: React.SyntheticEvent) => e.preventDefault();
 
-  if (loading) return <div className="mt-10 animate-pulse text-xl text-primary">Loading Zero-Lag Typing Engine...</div>;
+  if (loading) return <div className="mt-10 animate-pulse text-xl text-primary font-bold">Initializing Zero-Lag Typing Engine...</div>;
   if (!comp || !participant) return null;
 
+  const currentDisplayTime = comp.duration === 0 ? `${elapsedSeconds}s` : `${timeLeft}s`;
+
   return (
-    <div className="w-full max-w-5xl mt-8 relative select-none" onContextMenu={preventCheat}>
+    <div className="w-full max-w-5xl mt-6 relative select-none bg-slate-950/98 p-6 rounded-2xl border border-white/5 shadow-2xl min-h-[85vh] flex flex-col justify-center" onContextMenu={preventCheat}>
+      
+      {/* 3-2-1 Fullscreen Countdown Overlay */}
+      {isCountingDown && (
+        <div className="fixed inset-0 bg-slate-950/98 z-[200] flex flex-col items-center justify-center text-center animate-fadeIn">
+          <span className="text-primary/70 text-sm font-bold tracking-widest uppercase mb-4 animate-pulse">Get Ready to Type</span>
+          <div className="text-8xl md:text-9xl font-black text-primary animate-ping duration-1000 font-mono">
+            {countdown === 0 ? 'GO!' : countdown}
+          </div>
+          <span className="text-foreground/50 text-xs mt-8">Place your fingers on the home row keys.</span>
+        </div>
+      )}
+
       {/* Anti-Cheat Warning Popup */}
       {showWarning && (
         <div className="fixed top-8 left-1/2 -translate-x-1/2 bg-red-600 text-white px-6 py-3 rounded-lg shadow-2xl font-bold animate-bounce z-50 border border-red-400">
@@ -442,44 +521,71 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
         </div>
       )}
 
-      {/* Live Header Bar */}
-      <div className="flex justify-between items-center mb-6 text-foreground/80 px-2">
-        <div className="flex items-center gap-4">
-          <div className="text-3xl font-mono font-bold text-primary bg-primary/10 border border-primary/20 px-4 py-1.5 rounded-lg">
-            {timeLeft}s
+      {/* Live Telemetry dashboard grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+        <div className="glass-card p-4 flex items-center justify-between border border-white/5 relative overflow-hidden">
+          <div>
+            <span className="text-[10px] uppercase font-bold text-foreground/45 tracking-wider block">Live Speed</span>
+            <span className="text-2xl font-black text-primary font-mono">{liveWpm} <span className="text-xs text-foreground/50">WPM</span></span>
           </div>
-          {isTestRunning && (
-            <>
-              <div className="text-sm font-semibold text-green-400 flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-green-400 animate-ping"></span> Live Session
-              </div>
-              <button
-                onClick={handleFinish}
-                className="ml-2 bg-primary text-slate-950 font-extrabold text-xs px-4 py-2 rounded-lg hover:bg-yellow-400 transition-colors shadow-md"
-              >
-                End & Submit Test
-              </button>
-            </>
-          )}
+          <Activity className="w-8 h-8 text-primary/10 absolute right-4 bottom-4" />
         </div>
-        <div className="text-sm text-foreground/70">
-          Participant: <span className="font-bold text-white">{participant.name} ({participant.rollNo})</span>
+
+        <div className="glass-card p-4 flex items-center justify-between border border-white/5 relative overflow-hidden">
+          <div>
+            <span className="text-[10px] uppercase font-bold text-foreground/45 tracking-wider block">Accuracy</span>
+            <span className="text-2xl font-black text-white font-mono">{liveAccuracy}%</span>
+          </div>
+          <Award className="w-8 h-8 text-white/10 absolute right-4 bottom-4" />
+        </div>
+
+        <div className="glass-card p-4 flex items-center justify-between border border-white/5 relative overflow-hidden">
+          <div>
+            <span className="text-[10px] uppercase font-bold text-foreground/45 tracking-wider block">Typo Errors</span>
+            <span className="text-2xl font-black text-red-400 font-mono">{liveErrors}</span>
+          </div>
+          <AlertTriangle className="w-8 h-8 text-red-500/10 absolute right-4 bottom-4" />
+        </div>
+
+        <div className="glass-card p-4 flex items-center justify-between border border-white/5 relative overflow-hidden bg-primary/5 border-primary/20">
+          <div>
+            <span className="text-[10px] uppercase font-bold text-primary/70 tracking-wider block">{comp.duration === 0 ? 'Stopwatch' : 'Time Left'}</span>
+            <span className="text-2xl font-black text-primary font-mono">{currentDisplayTime}</span>
+          </div>
+          <Clock className="w-8 h-8 text-primary/15 absolute right-4 bottom-4" />
         </div>
       </div>
 
-      {/* Typing Card Display */}
+      {/* Typing Card Display Container */}
       <div 
-        className="glass-card p-8 md:p-10 relative overflow-hidden border border-white/10 shadow-2xl cursor-text"
+        className="glass-card p-8 md:p-10 relative overflow-hidden border border-white/15 shadow-2xl cursor-text bg-slate-950 flex-grow flex items-center rounded-2xl relative min-h-[40vh]"
         onClick={() => inputRef.current?.focus()}
       >
-        {!isTestRunning && !isFinished && (
-          <div className="absolute inset-0 bg-background/85 backdrop-blur-sm z-10 flex flex-col items-center justify-center cursor-pointer transition-opacity">
-            <span className="text-2xl text-primary font-extrabold mb-2 animate-pulse">Click here or start typing to begin</span>
-            <span className="text-xs text-foreground/60">Timer starts automatically on your first keypress</span>
+        {/* Startup Launch Card Overlay */}
+        {!isTestRunning && !isFinished && !isCountingDown && (
+          <div className="absolute inset-0 bg-slate-950/95 z-20 flex flex-col items-center justify-center p-6 text-center animate-fadeIn">
+            <div className="max-w-md space-y-5">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold border border-primary/30 bg-primary/10 text-primary">
+                READY TO COMPETE
+              </span>
+              <h2 className="text-3xl font-extrabold text-white tracking-tight">Test Your Typing Speed</h2>
+              <p className="text-xs text-foreground/70 leading-relaxed">
+                {comp.duration === 0 
+                  ? "This competition is untimed. The stopwatch counts up, and your test ends immediately when you completely finish typing the paragraph." 
+                  : `You have exactly ${Math.floor(comp.duration / 60)} Minute(s) to type as much as possible.`}
+              </p>
+              
+              <button 
+                onClick={startCountdown}
+                className="bg-primary text-slate-950 font-extrabold text-lg px-10 py-3.5 rounded-xl hover:bg-yellow-400 transition-all duration-200 shadow-[0_0_30px_rgba(226,183,20,0.3)] hover:scale-105 inline-flex items-center gap-2"
+              >
+                <Play className="w-5 h-5 fill-current" /> Start Typing Test
+              </button>
+            </div>
           </div>
         )}
 
-        <div className="text-2xl md:text-3xl leading-relaxed font-mono tracking-wide" style={{ userSelect: 'none' }}>
+        <div className="text-2xl md:text-3xl leading-relaxed font-mono tracking-wide w-full" style={{ userSelect: 'none' }}>
           {words.map((word, wIdx) => {
             const isPast = wIdx < activeWordIndex;
             const isActive = wIdx === activeWordIndex;
@@ -487,8 +593,8 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
             return (
               <span 
                 key={wIdx} 
-                className={`inline-block mr-3 mb-3 transition-colors ${
-                  isPast ? 'text-foreground/40' : isActive ? 'text-primary font-bold' : 'text-foreground/70'
+                className={`inline-block mr-4 mb-3 transition-colors px-1 py-0.5 rounded ${
+                  isPast ? 'text-foreground/45' : isActive ? 'bg-primary/10 border border-primary/20 text-primary font-bold shadow-[0_0_10px_rgba(226,183,20,0.1)]' : 'text-foreground/80'
                 }`}
               >
                 {word.split('').map((char, cIdx) => {
@@ -497,9 +603,9 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
                     if (cIdx < inputVal.length) {
                       colorClass = inputVal[cIdx] === char 
                         ? 'text-white border-b-2 border-green-400' 
-                        : 'text-red-400 bg-red-500/20 rounded';
+                        : 'text-red-500 bg-red-500/25 font-extrabold border-b-2 border-red-500 shadow-[0_0_12px_rgba(239,68,68,0.4)] animate-pulse rounded px-0.5';
                     } else if (cIdx === inputVal.length) {
-                      colorClass = 'border-b-2 border-primary animate-pulse text-primary'; // GPU Caret
+                      colorClass = 'border-b-2 border-primary animate-pulse text-primary';
                     }
                   }
                   return <span key={cIdx} className={colorClass}>{char}</span>;
@@ -523,7 +629,22 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
           onDrop={preventCheat}
           autoComplete="off"
           autoCorrect="off"
+          disabled={!isTestRunning}
         />
+      </div>
+
+      <div className="flex justify-between items-center mt-6 px-2 text-xs text-foreground/50">
+        <div>
+          Candidate: <span className="font-bold text-foreground/80">{participant.name} ({participant.rollNo})</span>
+        </div>
+        {isTestRunning && (
+          <button
+            onClick={handleFinish}
+            className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 font-bold px-4 py-2 rounded-lg transition-colors flex items-center gap-1.5"
+          >
+            <ShieldAlert className="w-4 h-4" /> End & Submit Early
+          </button>
+        )}
       </div>
     </div>
   );

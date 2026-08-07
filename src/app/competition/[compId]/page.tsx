@@ -151,7 +151,7 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
             <div className="flex items-center gap-4 text-xs font-mono text-foreground/70 bg-slate-950/80 p-3 rounded-xl border border-white/10 backdrop-blur-md">
               <div>
                 <span className="text-foreground/40 block">DURATION</span>
-                <span className="text-white font-bold text-sm">{Math.floor(comp.duration / 60)} Mins</span>
+                <span className="text-white font-bold text-sm">{comp.duration === 0 ? 'No Limit' : `${Math.floor(comp.duration / 60)} Mins`}</span>
               </div>
               <div className="h-6 w-px bg-white/10" />
               <div>

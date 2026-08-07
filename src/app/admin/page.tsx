@@ -200,7 +200,11 @@ export default function AdminDashboard() {
                       {comp.status}
                     </span>
                   </div>
-                  <p className="text-xs text-foreground/70 mb-6 line-clamp-2 leading-relaxed">{comp.description}</p>
+                  <p className="text-xs text-foreground/70 mb-4 line-clamp-2 leading-relaxed">{comp.description}</p>
+                  <div className="flex items-center gap-1.5 text-xs text-foreground/60 mb-6 font-mono">
+                    <Clock className="w-3.5 h-3.5 text-primary" />
+                    <span>{comp.duration === 0 ? 'NO TIME LIMIT' : `${Math.floor(comp.duration / 60)} MINS`}</span>
+                  </div>
                 </div>
 
                 <div className="pt-4 border-t border-white/10 flex justify-between items-center gap-2">
@@ -279,6 +283,7 @@ export default function AdminDashboard() {
                 <div>
                   <label className="block text-xs font-semibold uppercase text-foreground/80 mb-1">Test Duration</label>
                   <select value={duration} onChange={e => setDuration(Number(e.target.value))} className="w-full glass-input rounded-lg p-3 text-sm outline-none bg-slate-900">
+                    <option value={0}>No Time Limit (Finish on complete)</option>
                     <option value={30}>30 Seconds</option>
                     <option value={60}>1 Minute</option>
                     <option value={120}>2 Minutes</option>
