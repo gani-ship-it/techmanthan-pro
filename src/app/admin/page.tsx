@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { collection, query, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, onSnapshot, addDoc, deleteDoc, doc, getDocs, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Competition } from '@/types';
 import { useAdminAuth } from '@/lib/admin-auth';
@@ -74,12 +74,25 @@ export default function AdminDashboard() {
   };
 
   const handleDeleteCompetition = async (compId: string, compName: string) => {
-    if (!window.confirm(`Are you sure you want to delete competition "${compName}"? This action cannot be undone.`)) {
+    if (!window.confirm(`Are you sure you want to delete competition "${compName}"? This will permanently delete the contest and all associated student participant scores.`)) {
       return;
     }
 
     setDeletingId(compId);
     try {
+      // 1. Delete all subcollection participants first
+      const participantsRef = collection(db, `competitions/${compId}/participants`);
+      const pSnap = await getDocs(participantsRef);
+      
+      if (!pSnap.empty) {
+        const batch = writeBatch(db);
+        pSnap.forEach((docSnap) => {
+          batch.delete(docSnap.ref);
+        });
+        await batch.commit();
+      }
+
+      // 2. Delete parent competition document
       await deleteDoc(doc(db, 'competitions', compId));
     } catch (err) {
       console.error("Error deleting competition:", err);
@@ -88,6 +101,7 @@ export default function AdminDashboard() {
       setDeletingId(null);
     }
   };
+
 
   if (isAuthLoading || loading) return <div className="text-xl animate-pulse mt-12 text-primary font-bold">Loading Admin Command Center...</div>;
 
