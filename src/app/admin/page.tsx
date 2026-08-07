@@ -233,17 +233,18 @@ export default function AdminDashboard() {
 
       {/* Host New Competition Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="glass-card w-full max-w-2xl p-8 my-8 relative border border-primary/30 shadow-2xl">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6">
+          <div className="glass-card w-full max-w-2xl p-6 sm:p-8 relative border border-primary/30 shadow-2xl max-h-[90vh] flex flex-col my-auto animate-fadeIn">
             <button 
               onClick={() => setShowModal(false)} 
-              className="absolute top-4 right-4 text-foreground/50 hover:text-red-400 transition-colors p-1"
+              className="absolute top-4 right-4 text-foreground/50 hover:text-red-400 transition-colors p-1 z-10"
+              aria-label="Close Modal"
             >
               <X className="w-6 h-6" />
             </button>
 
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center">
+            <div className="flex items-center gap-3 mb-4 shrink-0 pr-8">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0">
                 <Sparkles className="w-5 h-5 text-primary" />
               </div>
               <div>
@@ -252,8 +253,8 @@ export default function AdminDashboard() {
               </div>
             </div>
             
-            <form onSubmit={handleCreate} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+            <form onSubmit={handleCreate} className="space-y-4 overflow-y-auto pr-2 max-h-[calc(90vh-160px)]">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold uppercase text-foreground/80 mb-1">Competition Title</label>
                   <input type="text" required value={name} onChange={e => setName(e.target.value)} className="w-full glass-input rounded-lg p-3 text-sm outline-none" placeholder="e.g. SpeedTyping 2026 Finals" />
@@ -269,7 +270,7 @@ export default function AdminDashboard() {
                 <input type="text" required value={desc} onChange={e => setDesc(e.target.value)} className="w-full glass-input rounded-lg p-3 text-sm outline-none" placeholder="Enter contest details" />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold uppercase text-foreground/80 mb-1">Unique ID (Password)</label>
                   <input type="text" required value={password} onChange={e => setPassword(e.target.value)} className="w-full glass-input rounded-lg p-3 text-sm outline-none font-mono" placeholder="e.g. ST2026-KEY" />
@@ -289,7 +290,7 @@ export default function AdminDashboard() {
                 <label className="block text-xs font-semibold uppercase text-primary mb-2 flex items-center gap-1.5">
                   <FileText className="w-4 h-4" /> Typing Passages (Exactly 5 Passages Required)
                 </label>
-                <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+                <div className="space-y-3">
                   {texts.map((t, idx) => (
                     <textarea
                       key={idx}
@@ -301,7 +302,7 @@ export default function AdminDashboard() {
                         newTexts[idx] = e.target.value;
                         setTexts(newTexts);
                       }}
-                      className="w-full glass-input rounded-lg p-3 text-sm outline-none h-16 font-mono text-xs resize-y"
+                      className="w-full glass-input rounded-lg p-3 text-sm outline-none h-20 font-mono text-xs resize-y"
                     />
                   ))}
                 </div>
@@ -314,6 +315,7 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
+
     </div>
   );
 }
