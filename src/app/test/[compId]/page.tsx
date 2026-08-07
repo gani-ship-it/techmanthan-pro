@@ -1,5 +1,8 @@
+'use client';
+
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+
 import { db } from '@/lib/firebase';
 import { Competition, Participant } from '@/types';
 import { useRouter } from 'next/navigation';
