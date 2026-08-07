@@ -80,15 +80,35 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
         // Fetch Participant
         const pRef = doc(db, `competitions/${c.id}/participants`, session.rollNo);
         const pSnap = await getDoc(pRef);
-        if (!pSnap.exists() || pSnap.data().hasParticipated) {
-          alert("Invalid session or you have already participated.");
-          localStorage.removeItem('techmanthan_session');
-          router.push('/');
-          return;
+        
+        let p: Participant;
+        if (pSnap.exists()) {
+          const pData = pSnap.data() as Participant;
+          if (pData.hasParticipated || pData.status === 'Completed' || pData.status === 'Disqualified') {
+            alert("You have already completed or submitted a test for this competition.");
+            localStorage.removeItem('techmanthan_session');
+            router.push('/');
+            return;
+          }
+          p = pData;
+        } else {
+          // Construct participant from valid session data
+          p = {
+            id: session.rollNo,
+            rollNo: session.rollNo,
+            name: session.name || 'Participant',
+            class: session.class || '',
+            section: '',
+            isRegistered: true,
+            hasParticipated: false,
+            status: 'Pending',
+            warnings: 0
+          };
         }
-        const p = pSnap.data() as Participant;
+
         setParticipant(p);
         setWarnings(p.warnings || 0);
+
 
         // Pick Passage & Setup Buffer
         const randomText = c.texts[Math.floor(Math.random() * c.texts.length)];
