@@ -1,7 +1,5 @@
-'use client';
-
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Competition, Participant } from '@/types';
 import { useRouter } from 'next/navigation';
@@ -109,7 +107,6 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
         setParticipant(p);
         setWarnings(p.warnings || 0);
 
-
         // Pick Passage & Setup Buffer
         const randomText = c.texts[Math.floor(Math.random() * c.texts.length)];
         const parsedWords = randomText.trim().split(/\s+/);
@@ -133,7 +130,7 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
     try {
       const { finalData } = JSON.parse(pendingStr);
       const pRef = doc(db, `competitions/${comp.id}/participants`, participant.rollNo);
-      await updateDoc(pRef, finalData);
+      await setDoc(pRef, finalData, { merge: true });
       
       localStorage.removeItem('techmanthan_pending_score');
       localStorage.removeItem('techmanthan_session');
@@ -166,6 +163,11 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
     const accuracy = finalCorrect + finalErrors > 0 ? Math.round((finalCorrect / (finalCorrect + finalErrors)) * 100) : 0;
 
     const finalData = {
+      rollNo: participant.rollNo,
+      name: participant.name,
+      class: participant.class || '',
+      section: participant.section || '',
+      isRegistered: true,
       hasParticipated: true,
       status: disqualified ? 'Disqualified' : 'Completed',
       score: {
@@ -187,7 +189,7 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
 
     try {
       const pRef = doc(db, `competitions/${comp.id}/participants`, participant.rollNo);
-      await updateDoc(pRef, finalData);
+      await setDoc(pRef, finalData, { merge: true });
       localStorage.removeItem('techmanthan_pending_score');
       localStorage.removeItem('techmanthan_session');
       setSyncSuccess(true);
@@ -208,7 +210,7 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
 
       // Async sync warning to DB without blocking typing engine
       const pRef = doc(db, `competitions/${comp.id}/participants`, participant.rollNo);
-      updateDoc(pRef, { warnings: nextWarnings }).catch(console.error);
+      setDoc(pRef, { warnings: nextWarnings }, { merge: true }).catch(console.error);
 
       if (nextWarnings >= 3) {
         isDisqualifiedRef.current = true;
@@ -218,6 +220,7 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
       return nextWarnings;
     });
   }, [comp, participant, submitScore]);
+
 
   useEffect(() => {
     if (loading || isFinished || isDisqualified) return;

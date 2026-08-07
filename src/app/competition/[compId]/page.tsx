@@ -75,28 +75,6 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
 
     try {
       const participantRef = doc(db, `competitions/${comp.id}/participants`, formattedRollNo);
-      const pSnap = await getDoc(participantRef);
-      
-      if (pSnap.exists()) {
-        const pData = pSnap.data() as Participant;
-        if (pData.hasParticipated || pData.status === 'Completed' || pData.status === 'Disqualified') {
-          setErrorMsg('This Roll Number has already submitted a test or is locked out.');
-          setVerifying(false);
-          return;
-        }
-      }
-
-      // Register / update student record on the fly in Firestore
-      await setDoc(participantRef, {
-        rollNo: formattedRollNo,
-        name: name.trim(),
-        class: studentClass,
-        section: '',
-        isRegistered: true,
-        hasParticipated: false,
-        status: 'Pending',
-        warnings: 0
-      }, { merge: true });
 
       // Save session info locally
       localStorage.setItem('techmanthan_session', JSON.stringify({
@@ -106,7 +84,21 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
         class: studentClass
       }));
 
-      // Redirect to test engine
+      // Fire & forget Firestore setDoc in background with merge: true so slow network never freezes button
+      setDoc(participantRef, {
+        rollNo: formattedRollNo,
+        name: name.trim(),
+        class: studentClass,
+        section: '',
+        isRegistered: true,
+        hasParticipated: false,
+        status: 'Pending',
+        warnings: 0
+      }, { merge: true }).catch((err) => {
+        console.warn("Background Firestore registration sync warning:", err);
+      });
+
+      // Redirect immediately to typing engine
       router.push(`/test/${comp.id}`);
 
     } catch (err) {
@@ -115,6 +107,8 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
       setVerifying(false);
     }
   };
+
+
 
   if (loading) return <div className="animate-pulse mt-12 text-xl text-primary font-bold">Loading Competition Details...</div>;
   if (!comp) return <div className="mt-12 text-red-400 font-bold text-xl">Competition not found.</div>;
