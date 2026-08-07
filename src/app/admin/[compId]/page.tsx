@@ -337,6 +337,7 @@ export default function CompetitionManage({ params }: { params: { compId: string
                     <th className="p-3">Rank</th>
                     <th className="p-3">Candidate Name</th>
                     <th className="p-3">Roll No</th>
+                    <th className="p-3">Class</th>
                     <th className="p-3">WPM</th>
                     <th className="p-3">Accuracy</th>
                     <th className="p-3">Errors</th>
@@ -346,7 +347,7 @@ export default function CompetitionManage({ params }: { params: { compId: string
                 <tbody>
                   {filteredParticipants.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="p-8 text-center text-foreground/40 text-xs">
+                      <td colSpan={8} className="p-8 text-center text-foreground/40 text-xs">
                         No participants found matching your criteria.
                       </td>
                     </tr>
@@ -356,6 +357,7 @@ export default function CompetitionManage({ params }: { params: { compId: string
                         <td className="p-3 font-mono font-bold text-foreground/70">{p.score ? `#${idx + 1}` : '-'}</td>
                         <td className="p-3 font-bold text-white">{p.name}</td>
                         <td className="p-3 font-mono text-xs text-foreground/80">{p.rollNo}</td>
+                        <td className="p-3 font-medium text-xs text-cyan-400">{p.class || '-'}</td>
                         <td className="p-3 font-black text-primary text-base">{p.score?.wpm || 0}</td>
                         <td className="p-3 font-semibold">{p.score?.accuracy || 0}%</td>
                         <td className="p-3 font-semibold text-red-400">{p.score?.errors || 0}</td>
@@ -371,6 +373,7 @@ export default function CompetitionManage({ params }: { params: { compId: string
                     ))
                   )}
                 </tbody>
+
               </table>
             </div>
           </div>

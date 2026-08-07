@@ -1,12 +1,22 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Competition, Participant } from '@/types';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Clock, UserCheck, ShieldAlert, KeyRound, User, Sparkles, X } from 'lucide-react';
+import { ArrowLeft, UserCheck, ShieldAlert, KeyRound, User, Sparkles, X, School, FileText } from 'lucide-react';
+
+
+const CLASS_OPTIONS = [
+  'I BCA A',
+  'I BCA B',
+  'I BCA C',
+  'II BCA A',
+  'II BCA B',
+  'II BCA C'
+];
 
 export default function CompetitionDetails({ params }: { params: { compId: string } }) {
   const router = useRouter();
@@ -15,7 +25,9 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
   const [showModal, setShowModal] = useState(false);
   
   // Form State
+  const [name, setName] = useState('');
   const [rollNo, setRollNo] = useState('');
+  const [studentClass, setStudentClass] = useState(CLASS_OPTIONS[0]);
   const [uniqueId, setUniqueId] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [verifying, setVerifying] = useState(false);
@@ -42,6 +54,16 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
     setErrorMsg('');
     
     if (!comp) return;
+
+    if (!name.trim()) {
+      setErrorMsg('Please enter your full Name.');
+      return;
+    }
+
+    if (!rollNo.trim()) {
+      setErrorMsg('Please enter your Roll Number.');
+      return;
+    }
     
     if (uniqueId.trim() !== comp.password.trim()) {
       setErrorMsg('Invalid Unique ID (Password). Please verify with your contest coordinator.');
@@ -49,37 +71,47 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
     }
 
     setVerifying(true);
+    const formattedRollNo = rollNo.trim().toUpperCase();
+
     try {
-      const participantRef = doc(db, `competitions/${comp.id}/participants`, rollNo.trim().toUpperCase());
+      const participantRef = doc(db, `competitions/${comp.id}/participants`, formattedRollNo);
       const pSnap = await getDoc(participantRef);
       
-      if (!pSnap.exists()) {
-        setErrorMsg('Roll Number not found. Ensure your school/college registered you for this contest.');
-        setVerifying(false);
-        return;
+      if (pSnap.exists()) {
+        const pData = pSnap.data() as Participant;
+        if (pData.hasParticipated || pData.status === 'Completed' || pData.status === 'Disqualified') {
+          setErrorMsg('This Roll Number has already submitted a test or is locked out.');
+          setVerifying(false);
+          return;
+        }
       }
 
-      const pData = pSnap.data() as Participant;
+      // Register / update student record on the fly in Firestore
+      await setDoc(participantRef, {
+        rollNo: formattedRollNo,
+        name: name.trim(),
+        class: studentClass,
+        section: '',
+        isRegistered: true,
+        hasParticipated: false,
+        status: 'Pending',
+        warnings: 0
+      }, { merge: true });
 
-      if (pData.hasParticipated || pData.status === 'Completed' || pData.status === 'Disqualified') {
-        setErrorMsg('This Roll Number has already submitted a test or is locked out.');
-        setVerifying(false);
-        return;
-      }
-
-      // Save verified session info locally
+      // Save session info locally
       localStorage.setItem('techmanthan_session', JSON.stringify({
         compId: comp.id,
-        rollNo: pData.rollNo,
-        name: pData.name
+        rollNo: formattedRollNo,
+        name: name.trim(),
+        class: studentClass
       }));
 
       // Redirect to test engine
       router.push(`/test/${comp.id}`);
 
     } catch (err) {
-      console.error(err);
-      setErrorMsg('An error occurred during Roll Number verification.');
+      console.error("Error during participant registration:", err);
+      setErrorMsg('An error occurred during registration. Please try again.');
       setVerifying(false);
     }
   };
@@ -154,7 +186,11 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
             <ul className="space-y-2.5 text-xs md:text-sm text-foreground/80">
               <li className="flex items-start gap-2">
                 <span className="text-emerald-400 font-bold">•</span>
-                <span>Each registered participant has exactly <strong>one attempt</strong>.</span>
+                <span>Enter your <strong>Name, Roll Number, Class, & Contest Unique Password</strong> to participate.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-400 font-bold">•</span>
+                <span>Each student has exactly <strong>one attempt</strong> per competition.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-emerald-400 font-bold">•</span>
@@ -162,7 +198,7 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-red-400 font-bold">•</span>
-                <span><strong>Anti-cheat warning:</strong> Do not switch tabs, unfocus the browser window, or open Developer Tools. 3 warnings result in immediate disqualification.</span>
+                <span><strong>Anti-cheat warning:</strong> Switching tabs or unfocusing the window triggers warnings. 3 warnings result in immediate disqualification.</span>
               </li>
             </ul>
           </div>
@@ -174,7 +210,7 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
                 onClick={() => setShowModal(true)}
                 className="bg-primary text-slate-950 font-extrabold text-xl px-12 py-4 rounded-xl hover:bg-yellow-400 transition-all duration-200 shadow-[0_0_30px_rgba(226,183,20,0.4)] hover:scale-105 inline-flex items-center gap-3"
               >
-                <Sparkles className="w-6 h-6" /> Join & Start Typing Test
+                <Sparkles className="w-6 h-6" /> Join & Start Speed Typing
               </button>
             ) : (
               <div className="px-8 py-4 bg-slate-900 border border-white/10 rounded-xl text-foreground/70 inline-block font-semibold">
@@ -187,8 +223,8 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
 
       {/* Registration Verification Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-slate-950/95 backdrop-blur-xl z-[100] flex items-center justify-center p-4">
-          <div className="glass-card w-full max-w-md p-8 relative border border-primary/30 shadow-2xl animate-fadeIn bg-slate-900/90">
+        <div className="fixed inset-0 bg-slate-950/95 backdrop-blur-xl z-[100] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+          <div className="glass-card w-full max-w-md p-6 sm:p-8 relative border border-primary/30 shadow-2xl animate-fadeIn bg-slate-900/95 my-auto max-h-[90vh] overflow-y-auto">
 
             <button 
               onClick={() => setShowModal(false)} 
@@ -201,28 +237,60 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
               <div className="w-14 h-14 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center mb-3">
                 <UserCheck className="w-7 h-7 text-primary" />
               </div>
-              <h2 className="text-2xl font-bold text-white mb-1">Verify Registration</h2>
-              <p className="text-xs text-foreground/70">Enter your Roll Number & Contest Password to unlock the test</p>
+              <h2 className="text-2xl font-bold text-white mb-1">Enter Student Details</h2>
+              <p className="text-xs text-foreground/70">Fill out your information and Unique Password to start</p>
             </div>
             
             <form onSubmit={handleParticipate} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-foreground/80 mb-1.5 flex items-center gap-1.5">
-                  <User className="w-3.5 h-3.5 text-primary" /> Roll Number / Student ID
+                  <User className="w-3.5 h-3.5 text-primary" /> Student Full Name
                 </label>
                 <input 
                   type="text" 
                   required 
+                  className="w-full glass-input rounded-lg p-3 text-sm outline-none"
+                  placeholder="e.g. Rahul Sharma"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-foreground/80 mb-1.5 flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-primary" /> Roll Number / Student ID
+                </label>
+
+                <input 
+                  type="text" 
+                  required 
                   className="w-full glass-input rounded-lg p-3 text-sm outline-none uppercase font-mono tracking-wider"
-                  placeholder="e.g. 101 or CS2026-04"
+                  placeholder="e.g. 101 or 24BCA102"
                   value={rollNo}
                   onChange={(e) => setRollNo(e.target.value)}
                 />
               </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-foreground/80 mb-1.5 flex items-center gap-1.5">
+                  <School className="w-3.5 h-3.5 text-primary" /> Class & Section
+                </label>
+                <select
+                  value={studentClass}
+                  onChange={(e) => setStudentClass(e.target.value)}
+                  className="w-full glass-input rounded-lg p-3 text-sm outline-none bg-slate-900 text-white font-medium"
+                >
+                  {CLASS_OPTIONS.map((cls) => (
+                    <option key={cls} value={cls}>
+                      {cls}
+                    </option>
+                  ))}
+                </select>
+              </div>
               
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-foreground/80 mb-1.5 flex items-center gap-1.5">
-                  <KeyRound className="w-3.5 h-3.5 text-primary" /> Unique ID (Password)
+                  <KeyRound className="w-3.5 h-3.5 text-primary" /> Unique Password
                 </label>
                 <input 
                   type="password" 
@@ -245,7 +313,7 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
                 disabled={verifying}
                 className="w-full bg-primary text-slate-950 font-bold py-3.5 rounded-lg mt-2 hover:bg-yellow-400 disabled:opacity-50 transition-all shadow-[0_0_20px_rgba(226,183,20,0.3)]"
               >
-                {verifying ? 'Verifying Student Registration...' : 'Unlock & Start Test Engine'}
+                {verifying ? 'Registering & Unlocking...' : 'Start Speed Typing Test'}
               </button>
             </form>
           </div>
