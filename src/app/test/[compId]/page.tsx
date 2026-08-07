@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-
 import { db } from '@/lib/firebase';
 import { Competition, Participant } from '@/types';
 import { useRouter } from 'next/navigation';
@@ -47,6 +46,9 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
   const isFinishedRef = useRef(false);
   const isDisqualifiedRef = useRef(false);
   
+  const startTimeRef = useRef<number | null>(null);
+  const finalStatsRef = useRef({ wpm: 0, accuracy: 0, timeSpent: 0, errors: 0 });
+
   const inputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -158,12 +160,23 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
     if (!comp || !participant || isFinishedRef.current) return;
     isFinishedRef.current = true;
 
-    const timeSpent = comp.duration - timeLeft;
+    const now = Date.now();
+    const timeSpent = startTimeRef.current 
+      ? Math.max(1, Math.min(comp.duration, Math.round((now - startTimeRef.current) / 1000)))
+      : 1;
+
     const finalCorrect = correctCharsRef.current;
     const finalErrors = errorsRef.current;
 
-    const wpm = timeSpent > 0 ? Math.round((finalCorrect / 5) / (timeSpent / 60)) : 0;
-    const accuracy = finalCorrect + finalErrors > 0 ? Math.round((finalCorrect / (finalCorrect + finalErrors)) * 100) : 0;
+    const wpm = disqualified ? 0 : (timeSpent > 0 ? Math.round((finalCorrect / 5) / (timeSpent / 60)) : 0);
+    const accuracy = disqualified ? 0 : ((finalCorrect + finalErrors) > 0 ? Math.round((finalCorrect / (finalCorrect + finalErrors)) * 100) : 0);
+
+    finalStatsRef.current = {
+      wpm,
+      accuracy,
+      timeSpent,
+      errors: finalErrors
+    };
 
     const finalData = {
       rollNo: participant.rollNo,
@@ -174,8 +187,8 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
       hasParticipated: true,
       status: disqualified ? 'Disqualified' : 'Completed',
       score: {
-        wpm: disqualified ? 0 : wpm,
-        accuracy: disqualified ? 0 : accuracy,
+        wpm,
+        accuracy,
         errors: finalErrors,
         time: timeSpent,
         submittedAt: Date.now()
@@ -200,7 +213,7 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
       console.warn("Network submission failed. Score backed up locally in localStorage.", err);
       setIsOfflineSaved(true);
     }
-  }, [comp, participant, timeLeft]);
+  }, [comp, participant]);
 
   // 4. Anti-Cheat Handlers & Keyboard Lockdowns
   const triggerWarning = useCallback(async () => {
@@ -223,7 +236,6 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
       return nextWarnings;
     });
   }, [comp, participant, submitScore]);
-
 
   useEffect(() => {
     if (loading || isFinished || isDisqualified) return;
@@ -272,9 +284,10 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (isFinishedRef.current || isDisqualifiedRef.current) return;
 
-    // Start timer on first keystroke
+    // Start timer & timestamp on first keystroke
     if (!isTestRunningRef.current) {
       isTestRunningRef.current = true;
+      startTimeRef.current = Date.now();
       setIsTestRunning(true);
 
       timerRef.current = setInterval(() => {
@@ -374,22 +387,26 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
               <div className="glass-card p-4">
                 <div className="text-4xl md:text-5xl font-black text-primary mb-1">
-                  {Math.round((correctChars / 5) / ((comp.duration - timeLeft) / 60) || 0)}
+                  {finalStatsRef.current.wpm}
                 </div>
                 <div className="text-foreground/60 text-xs font-semibold uppercase tracking-wider">WPM</div>
               </div>
               <div className="glass-card p-4">
                 <div className="text-4xl md:text-5xl font-black text-white mb-1">
-                  {correctChars + errors > 0 ? Math.round((correctChars / (correctChars + errors)) * 100) : 0}%
+                  {finalStatsRef.current.accuracy}%
                 </div>
                 <div className="text-foreground/60 text-xs font-semibold uppercase tracking-wider">Accuracy</div>
               </div>
               <div className="glass-card p-4">
-                <div className="text-4xl md:text-5xl font-black text-red-400 mb-1">{errors}</div>
+                <div className="text-4xl md:text-5xl font-black text-red-400 mb-1">
+                  {finalStatsRef.current.errors}
+                </div>
                 <div className="text-foreground/60 text-xs font-semibold uppercase tracking-wider">Errors</div>
               </div>
               <div className="glass-card p-4">
-                <div className="text-4xl md:text-5xl font-black text-white mb-1">{comp.duration - timeLeft}s</div>
+                <div className="text-4xl md:text-5xl font-black text-white mb-1">
+                  {finalStatsRef.current.timeSpent}s
+                </div>
                 <div className="text-foreground/60 text-xs font-semibold uppercase tracking-wider">Time</div>
               </div>
             </div>
@@ -426,15 +443,23 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
       )}
 
       {/* Live Header Bar */}
-      <div className="flex justify-between items-end mb-6 text-foreground/80 px-2">
+      <div className="flex justify-between items-center mb-6 text-foreground/80 px-2">
         <div className="flex items-center gap-4">
           <div className="text-3xl font-mono font-bold text-primary bg-primary/10 border border-primary/20 px-4 py-1.5 rounded-lg">
             {timeLeft}s
           </div>
           {isTestRunning && (
-            <div className="text-sm font-semibold text-green-400 flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-green-400 animate-ping"></span> Live Session
-            </div>
+            <>
+              <div className="text-sm font-semibold text-green-400 flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-green-400 animate-ping"></span> Live Session
+              </div>
+              <button
+                onClick={handleFinish}
+                className="ml-2 bg-primary text-slate-950 font-extrabold text-xs px-4 py-2 rounded-lg hover:bg-yellow-400 transition-colors shadow-md"
+              >
+                End & Submit Test
+              </button>
+            </>
           )}
         </div>
         <div className="text-sm text-foreground/70">
@@ -498,8 +523,6 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
           onDrop={preventCheat}
           autoComplete="off"
           autoCorrect="off"
-          autoCapitalize="off"
-          spellCheck="false"
         />
       </div>
     </div>
