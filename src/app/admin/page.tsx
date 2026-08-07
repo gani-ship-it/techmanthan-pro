@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { collection, query, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Competition } from '@/types';
 import { useAdminAuth } from '@/lib/admin-auth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Shield, Plus, LogOut, Key, Clock, FileText, CheckCircle2, AlertCircle, Trophy, Sparkles, X } from 'lucide-react';
+import { Shield, Plus, LogOut, Key, Clock, FileText, CheckCircle2, Trophy, Sparkles, X, Trash2 } from 'lucide-react';
 
 export default function AdminDashboard() {
   const { isAuthenticated, isLoading: isAuthLoading, logout } = useAdminAuth();
@@ -16,6 +16,7 @@ export default function AdminDashboard() {
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Form State
   const [name, setName] = useState('');
@@ -69,6 +70,22 @@ export default function AdminDashboard() {
     } catch (err) {
       console.error("Error creating competition:", err);
       alert("Error creating competition.");
+    }
+  };
+
+  const handleDeleteCompetition = async (compId: string, compName: string) => {
+    if (!window.confirm(`Are you sure you want to delete competition "${compName}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    setDeletingId(compId);
+    try {
+      await deleteDoc(doc(db, 'competitions', compId));
+    } catch (err) {
+      console.error("Error deleting competition:", err);
+      alert("Error deleting competition. Please check permissions.");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -172,16 +189,27 @@ export default function AdminDashboard() {
                   <p className="text-xs text-foreground/70 mb-6 line-clamp-2 leading-relaxed">{comp.description}</p>
                 </div>
 
-                <div className="pt-4 border-t border-white/10 flex justify-between items-center">
+                <div className="pt-4 border-t border-white/10 flex justify-between items-center gap-2">
                   <div className="flex items-center gap-1.5 text-xs font-mono text-primary bg-primary/10 px-2.5 py-1 rounded border border-primary/20">
                     <Key className="w-3.5 h-3.5" /> {comp.password}
                   </div>
 
-                  <Link href={`/admin/${comp.id}`}>
-                    <button className="bg-white/10 hover:bg-white/20 text-white font-bold px-4 py-2 rounded-lg text-xs transition-colors">
-                      Manage Portal →
+                  <div className="flex items-center gap-2">
+                    <Link href={`/admin/${comp.id}`}>
+                      <button className="bg-white/10 hover:bg-white/20 text-white font-bold px-3.5 py-2 rounded-lg text-xs transition-colors">
+                        Manage →
+                      </button>
+                    </Link>
+
+                    <button 
+                      onClick={() => handleDeleteCompetition(comp.id, comp.name)}
+                      disabled={deletingId === comp.id}
+                      className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 p-2 rounded-lg transition-colors text-xs disabled:opacity-50"
+                      title="Delete Competition"
+                    >
+                      <Trash2 className="w-4 h-4" />
                     </button>
-                  </Link>
+                  </div>
                 </div>
               </div>
             ))}
