@@ -1,0 +1,75 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #323437;
+  --foreground: #d1d0c5;
+  --primary: #e2b714;
+  --error: #d9534f;
+  --caret: #e2b714;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', sans-serif;
+}
+
+.glass-card {
+  background-color: rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 1rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.typing-word {
+  display: inline-block;
+  margin-right: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.typing-letter {
+  color: #646669;
+}
+
+.typing-letter.correct {
+  color: #d1d0c5;
+}
+
+.typing-letter.incorrect {
+  color: #d9534f;
+}
+
+.typing-letter.extra {
+  color: #792e2d;
+}
+
+#caret {
+  position: absolute;
+  width: 2px;
+  height: 1.5em;
+  background-color: var(--caret);
+  animation: blink 1s step-start infinite;
+  transition: all 0.1s ease;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+/* Hide scrollbar for clean UI */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+::-webkit-scrollbar-thumb {
+  background: #646669;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
