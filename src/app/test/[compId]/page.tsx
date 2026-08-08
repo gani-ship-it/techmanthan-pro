@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useState, useRef, useCallback } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Competition, Participant } from '@/types';
 import { useRouter } from 'next/navigation';
-import { Clock, Play, AlertTriangle, ShieldAlert, CheckCircle2, RotateCcw, Activity, Award } from 'lucide-react';
+import { Play } from 'lucide-react';
 
 const playAudioTone = (freq: number, type: OscillatorType, duration: number) => {
   if (typeof window === 'undefined') return;
@@ -41,14 +41,14 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
 
   // Typing Render State
   const [words, setWords] = useState<string[]>([]);
-  const [activeWordIndex, setActiveWordIndex] = useState(0);
-  const [inputVal, setInputVal] = useState('');
+  // Flat character index cursor (includes spaces between words)
+  const [charIndex, setCharIndex] = useState(0);
 
   // Countdown State
   const [isCountingDown, setIsCountingDown] = useState(false);
   const [countdown, setCountdown] = useState(3);
 
-  // Live Telemetry Stats (Updated reactively in real time)
+  // Live Telemetry Stats
   const [liveWpm, setLiveWpm] = useState(0);
   const [liveAccuracy, setLiveAccuracy] = useState(100);
   const [liveErrors, setLiveErrors] = useState(0);
@@ -63,16 +63,22 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncSuccess, setSyncSuccess] = useState(false);
 
+  // Scrolling state — MonkeyType 3-line window
+  const [scrollY, setScrollY] = useState(0);
+  const wordSpanRefs = useRef<(HTMLSpanElement | null)[]>([]);
+
   // High-Performance Mutable References
-  const inputValRef = useRef('');
-  const activeWordIndexRef = useRef(0);
+  const charIndexRef = useRef(0);          // current position in fullText
+  const fullTextRef  = useRef('');          // words joined with single spaces
+  // charStates: 'c' correct | 'w' wrong | 'u' untyped — one per char in fullText
+  const charStatesRef = useRef<string[]>([]);
   const correctCharsRef = useRef(0);
   const errorsRef = useRef(0);
   const wordsRef = useRef<string[]>([]);
   const isTestRunningRef = useRef(false);
   const isFinishedRef = useRef(false);
   const isDisqualifiedRef = useRef(false);
-  
+
   const startTimeRef = useRef<number | null>(null);
   const finalStatsRef = useRef({ wpm: 0, accuracy: 0, timeSpent: 0, errors: 0 });
 
@@ -141,8 +147,11 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
         // Pick Passage & Setup Buffer
         const randomText = c.texts[Math.floor(Math.random() * c.texts.length)];
         const parsedWords = randomText.trim().split(/\s+/);
+        const fullText = parsedWords.join(' ');
         setWords(parsedWords);
         wordsRef.current = parsedWords;
+        fullTextRef.current = fullText;
+        charStatesRef.current = new Array(fullText.length).fill('u');
 
         setLoading(false);
       } catch (err) {
@@ -189,8 +198,8 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
     const now = Date.now();
     const durationLimit = comp.duration === 0 ? 99999 : comp.duration;
     const timeSpent = startTimeRef.current 
-      ? Math.max(1, Math.min(durationLimit, Math.round((now - startTimeRef.current) / 1000)))
-      : 1;
+      ? Math.min(durationLimit, parseFloat(((now - startTimeRef.current) / 1000).toFixed(3)))
+      : 0.001;
 
     const finalCorrect = correctCharsRef.current;
     const finalErrors = errorsRef.current;
@@ -355,63 +364,100 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
     }, 1000);
   };
 
-  // 6. Zero-Latency Keystroke Handler
+  // Helper: recompute & push live stats
+  const pushLiveStats = () => {
+    const elapsed = startTimeRef.current ? Math.max(1, Math.round((Date.now() - startTimeRef.current) / 1000)) : 1;
+    const c = correctCharsRef.current;
+    const err = errorsRef.current;
+    setLiveWpm(c > 0 ? Math.round((c / 5) / (elapsed / 60)) : 0);
+    setLiveErrors(err);
+    setLiveAccuracy(c + err > 0 ? Math.round((c / (c + err)) * 100) : 100);
+  };
+
+  // 6. Zero-Latency Keystroke Handler — flat charIndex model
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (isFinishedRef.current || isDisqualifiedRef.current) return;
 
-    const currentWord = wordsRef.current[activeWordIndexRef.current];
-    if (!currentWord) return;
+    const fullText = fullTextRef.current;
+    const pos = charIndexRef.current;
+    e.preventDefault(); // we manage all input manually
 
+    // ── Backspace: undo last typed character ──────────────────────────
     if (e.key === 'Backspace') {
+      if (pos === 0) return;
+      const prev = pos - 1;
+      const prevState = charStatesRef.current[prev];
+      if (prevState === 'c') {
+        correctCharsRef.current = Math.max(0, correctCharsRef.current - 1);
+      }
+      // Note: We intentionally do NOT decrement errorsRef here.
+      // This ensures that mistakes permanently reduce accuracy, even if corrected.
+      charStatesRef.current[prev] = 'u';
+      charIndexRef.current = prev;
+      setCharIndex(prev);
+      pushLiveStats();
       return;
     }
 
-    if (e.key.length === 1) {
+    // Ignore modifier / function keys
+    if (e.key.length !== 1) return;
+    // Already at end
+    if (pos >= fullText.length) return;
+
+    const expected = fullText[pos];
+
+    // ── Space position: ONLY space key is valid ───────────────────────
+    if (expected === ' ') {
       if (e.key === ' ') {
-        if (inputValRef.current !== currentWord) {
-          e.preventDefault();
-          playAudioTone(180, 'sawtooth', 0.1);
-        } else {
-          e.preventDefault();
-          activeWordIndexRef.current += 1;
-          inputValRef.current = '';
-          
-          setActiveWordIndex(activeWordIndexRef.current);
-          setInputVal('');
-
-          // Auto-submit if all words completely typed
-          if (activeWordIndexRef.current >= wordsRef.current.length) {
-            handleFinish();
-          }
-        }
+        charStatesRef.current[pos] = 'c';
+        correctCharsRef.current++;
+        playAudioTone(880, 'sine', 0.04);
       } else {
-        const expectedChar = currentWord[inputValRef.current.length];
-        if (e.key !== expectedChar) {
-          e.preventDefault();
-          errorsRef.current += 1;
-          setLiveErrors(errorsRef.current);
-          playAudioTone(180, 'sawtooth', 0.1);
-        } else {
-          correctCharsRef.current += 1;
-          playAudioTone(880, 'sine', 0.04);
-        }
-
-        // Live stats computation
-        const elapsed = startTimeRef.current ? Math.max(1, Math.round((Date.now() - startTimeRef.current) / 1000)) : 1;
-        const currentCorrect = correctCharsRef.current;
-        const currentErrors = errorsRef.current;
-        
-        setLiveWpm(Math.round((currentCorrect / 5) / (elapsed / 60)));
-        setLiveAccuracy(currentCorrect + currentErrors > 0 ? Math.round((currentCorrect / (currentCorrect + currentErrors)) * 100) : 100);
+        // Wrong key at space — play error, do NOT advance
+        playAudioTone(180, 'sawtooth', 0.1);
+        errorsRef.current++;
+        pushLiveStats();
+        return;
+      }
+    } else {
+      // ── Letter position ───────────────────────────────────────────────
+      if (e.key === ' ') {
+        // Space when a letter is expected — block entirely
+        playAudioTone(180, 'sawtooth', 0.1);
+        return;
+      } else if (e.key === expected) {
+        charStatesRef.current[pos] = 'c';
+        correctCharsRef.current++;
+        playAudioTone(880, 'sine', 0.04);
+      } else {
+        charStatesRef.current[pos] = 'w';
+        errorsRef.current++;
+        playAudioTone(180, 'sawtooth', 0.1);
       }
     }
+
+    // Advance cursor
+    const next = pos + 1;
+    charIndexRef.current = next;
+    setCharIndex(next);
+    pushLiveStats();
+
+    // Auto-submit when full text is typed
+    if (next >= fullText.length) handleFinish();
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value.replace(/\s/g, '');
-    inputValRef.current = val;
-    setInputVal(val);
-  };
+  // 7. Scroll tracking — derive active word from charIndex
+  useLayoutEffect(() => {
+    const fullText = fullTextRef.current;
+    if (!fullText) return;
+    // Which word does charIndex fall in?
+    const textBefore = fullText.slice(0, Math.max(0, charIndex));
+    const wIdx = Math.min(wordsRef.current.length - 1, textBefore.split(' ').length - 1);
+    const activeEl = wordSpanRefs.current[wIdx];
+    if (!activeEl) return;
+    const LINE_H = 48;
+    setScrollY(Math.max(0, activeEl.offsetTop - LINE_H));
+  }, [charIndex]);
 
   const preventCheat = (e: React.SyntheticEvent) => e.preventDefault();
 
@@ -421,36 +467,36 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
   const currentDisplayTime = comp.duration === 0 ? `${elapsedSeconds}s` : `${timeLeft}s`;
 
   return (
-    <div className="w-full max-w-5xl mt-6 relative select-none bg-slate-950/98 p-6 rounded-2xl border border-white/5 shadow-2xl min-h-[85vh] flex flex-col justify-center" onContextMenu={preventCheat}>
-      
+    <div className="w-full max-w-4xl mt-6 relative select-none flex flex-col min-h-[80vh] justify-center" onContextMenu={preventCheat}>
+
       {/* 3-2-1 Fullscreen Countdown Overlay */}
       {isCountingDown && (
-        <div className="fixed inset-0 bg-slate-950/98 z-[200] flex flex-col items-center justify-center text-center animate-fadeIn">
-          <span className="text-primary/70 text-sm font-bold tracking-widest uppercase mb-4 animate-pulse">Get Ready to Type</span>
-          <div className="text-8xl md:text-9xl font-black text-primary animate-ping duration-1000 font-mono">
+        <div className="fixed inset-0 bg-[#0d1117] z-[200] flex flex-col items-center justify-center text-center">
+          <span className="text-primary/60 text-xs font-bold tracking-[0.3em] uppercase mb-6">get ready</span>
+          <div className="text-[9rem] font-black text-primary font-mono leading-none">
             {countdown === 0 ? 'GO!' : countdown}
           </div>
-          <span className="text-foreground/50 text-xs mt-8">Place your fingers on the home row keys.</span>
+          <span className="text-slate-600 text-xs mt-8 tracking-wider">fingers on home row</span>
         </div>
       )}
 
       {/* Anti-Cheat Warning Popup */}
       {showWarning && (
-        <div className="fixed top-8 left-1/2 -translate-x-1/2 bg-red-600 text-white px-6 py-3 rounded-lg shadow-2xl font-bold animate-bounce z-50 border border-red-400">
-          ⚠️ Warning {warnings}/3: Switching tabs or unfocusing the window is prohibited!
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 bg-red-600/90 backdrop-blur text-white px-5 py-2.5 rounded-lg shadow-2xl font-bold text-sm z-50 border border-red-400/50">
+          ⚠️ Warning {warnings}/3 — switching tabs is prohibited!
         </div>
       )}
 
       {/* Disqualification Screen */}
       {isDisqualified && (
-        <div className="fixed inset-0 bg-black/95 z-50 flex flex-col items-center justify-center p-6 text-center">
-          <h1 className="text-red-500 text-5xl font-extrabold mb-4">DISQUALIFIED</h1>
-          <p className="text-xl text-foreground/80 mb-8 max-w-lg">
-            Your exam session was terminated due to anti-cheat policy violations (tab switching / window unfocusing).
+        <div className="fixed inset-0 bg-[#0d1117] z-50 flex flex-col items-center justify-center p-6 text-center">
+          <h1 className="text-red-500 text-6xl font-black mb-4 tracking-tight">DISQUALIFIED</h1>
+          <p className="text-slate-400 text-base mb-10 max-w-md leading-relaxed">
+            Your session was terminated due to anti-cheat violations (tab switching).
           </p>
-          <button 
-            onClick={() => router.push('/')} 
-            className="bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-lg font-bold text-lg transition-transform hover:scale-105"
+          <button
+            onClick={() => router.push('/')}
+            className="bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-lg font-bold transition-transform hover:scale-105"
           >
             Return to Home
           </button>
@@ -459,44 +505,34 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
 
       {/* Finished Modal */}
       {isFinished && !isDisqualified && (
-        <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4 backdrop-blur-md">
+        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 backdrop-blur-md">
           <div className="glass-card p-8 md:p-12 text-center max-w-2xl w-full border border-primary/30 shadow-2xl">
             <h2 className="text-4xl font-extrabold text-primary mb-6">Test Completed!</h2>
-            
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
               <div className="glass-card p-4">
-                <div className="text-4xl md:text-5xl font-black text-primary mb-1">
-                  {finalStatsRef.current.wpm}
-                </div>
+                <div className="text-4xl md:text-5xl font-black text-primary mb-1">{finalStatsRef.current.wpm}</div>
                 <div className="text-foreground/60 text-xs font-semibold uppercase tracking-wider">WPM</div>
               </div>
               <div className="glass-card p-4">
-                <div className="text-4xl md:text-5xl font-black text-white mb-1">
-                  {finalStatsRef.current.accuracy}%
-                </div>
+                <div className="text-4xl md:text-5xl font-black text-white mb-1">{finalStatsRef.current.accuracy}%</div>
                 <div className="text-foreground/60 text-xs font-semibold uppercase tracking-wider">Accuracy</div>
               </div>
               <div className="glass-card p-4">
-                <div className="text-4xl md:text-5xl font-black text-red-400 mb-1">
-                  {finalStatsRef.current.errors}
-                </div>
+                <div className="text-4xl md:text-5xl font-black text-red-400 mb-1">{finalStatsRef.current.errors}</div>
                 <div className="text-foreground/60 text-xs font-semibold uppercase tracking-wider">Errors</div>
               </div>
               <div className="glass-card p-4">
-                <div className="text-4xl md:text-5xl font-black text-white mb-1">
-                  {finalStatsRef.current.timeSpent}s
-                </div>
+                <div className="text-4xl md:text-5xl font-black text-white mb-1">{finalStatsRef.current.timeSpent}s</div>
                 <div className="text-foreground/60 text-xs font-semibold uppercase tracking-wider">Time</div>
               </div>
             </div>
 
-            {/* Offline Sync Status Banner */}
             {isOfflineSaved && (
               <div className="mb-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-yellow-300 text-sm">
-                <p className="font-bold mb-2">⚠️ Wi-Fi Disconnected - Score Backed Up Locally</p>
-                <p className="text-xs text-foreground/70 mb-3">Your score is safely saved on this computer. Click below when reconnected to submit.</p>
-                <button 
-                  onClick={syncPendingScore} 
+                <p className="font-bold mb-2">⚠️ Wi-Fi Disconnected — Score Backed Up Locally</p>
+                <p className="text-xs text-foreground/70 mb-3">Your score is safely saved. Click below when reconnected.</p>
+                <button
+                  onClick={syncPendingScore}
                   disabled={isSyncing}
                   className="bg-yellow-500 text-background px-6 py-2 rounded-md font-bold text-sm hover:bg-yellow-400 disabled:opacity-50 transition-colors"
                 >
@@ -511,8 +547,8 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
               </div>
             )}
 
-            <button 
-              onClick={() => router.push('/')} 
+            <button
+              onClick={() => router.push('/')}
               className="bg-primary text-background font-extrabold px-8 py-4 rounded-lg hover:bg-yellow-400 w-full text-xl transition-all shadow-[0_0_25px_rgba(226,183,20,0.4)] hover:scale-[1.02]"
             >
               Return to Competitions
@@ -521,131 +557,168 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
         </div>
       )}
 
-      {/* Live Telemetry dashboard grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-        <div className="glass-card p-4 flex items-center justify-between border border-white/5 relative overflow-hidden">
-          <div>
-            <span className="text-[10px] uppercase font-bold text-foreground/45 tracking-wider block">Live Speed</span>
-            <span className="text-2xl font-black text-primary font-mono">{liveWpm} <span className="text-xs text-foreground/50">WPM</span></span>
+      {/* ── MonkeyType-style layout ── */}
+      <div className="flex flex-col gap-8">
+
+        {/* Slim stat row — always visible */}
+        <div className="flex items-center gap-8 px-1">
+          <div className="flex flex-col">
+            <span className="text-[10px] text-slate-600 uppercase tracking-widest font-semibold">
+              {comp.duration === 0 ? 'elapsed' : 'time left'}
+            </span>
+            <span className="text-3xl font-black font-mono text-primary leading-none">{currentDisplayTime}</span>
           </div>
-          <Activity className="w-8 h-8 text-primary/10 absolute right-4 bottom-4" />
+          <div className="w-px h-8 bg-slate-800" />
+          <div className="flex flex-col">
+            <span className="text-[10px] text-slate-600 uppercase tracking-widest font-semibold">wpm</span>
+            <span className="text-3xl font-black font-mono text-slate-300 leading-none">{liveWpm}</span>
+          </div>
+          <div className="w-px h-8 bg-slate-800" />
+          <div className="flex flex-col">
+            <span className="text-[10px] text-slate-600 uppercase tracking-widest font-semibold">acc</span>
+            <span className="text-3xl font-black font-mono text-slate-300 leading-none">{liveAccuracy}%</span>
+          </div>
+          <div className="w-px h-8 bg-slate-800" />
+          <div className="flex flex-col">
+            <span className="text-[10px] text-slate-600 uppercase tracking-widest font-semibold">errors</span>
+            <span className="text-3xl font-black font-mono text-red-500 leading-none">{liveErrors}</span>
+          </div>
         </div>
 
-        <div className="glass-card p-4 flex items-center justify-between border border-white/5 relative overflow-hidden">
-          <div>
-            <span className="text-[10px] uppercase font-bold text-foreground/45 tracking-wider block">Accuracy</span>
-            <span className="text-2xl font-black text-white font-mono">{liveAccuracy}%</span>
-          </div>
-          <Award className="w-8 h-8 text-white/10 absolute right-4 bottom-4" />
-        </div>
+        {/* Typing area — clean, no card borders */}
+        <div
+          className="relative cursor-text"
+          onClick={() => inputRef.current?.focus()}
+        >
+          {/* Start overlay */}
+          {!isTestRunning && !isFinished && !isCountingDown && (
+            <div className="absolute inset-0 bg-[#0d1117]/95 z-20 flex flex-col items-center justify-center rounded-xl text-center p-8">
+              <div className="max-w-sm space-y-5">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold border border-primary/30 bg-primary/10 text-primary">
+                  READY TO COMPETE
+                </span>
+                <h2 className="text-2xl font-extrabold text-white tracking-tight">Test Your Typing Speed</h2>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  {comp.duration === 0
+                    ? 'Untimed — auto-submits when you finish the paragraph.'
+                    : `You have ${Math.floor(comp.duration / 60)} minute(s). Auto-submits when time is up.`}
+                </p>
+                <button
+                  onClick={startCountdown}
+                  className="bg-primary text-slate-950 font-extrabold text-base px-10 py-3 rounded-xl hover:bg-yellow-400 transition-all shadow-[0_0_25px_rgba(226,183,20,0.3)] hover:scale-105 inline-flex items-center gap-2"
+                >
+                  <Play className="w-4 h-4 fill-current" /> Start Typing Test
+                </button>
+              </div>
+            </div>
+          )}
 
-        <div className="glass-card p-4 flex items-center justify-between border border-white/5 relative overflow-hidden">
-          <div>
-            <span className="text-[10px] uppercase font-bold text-foreground/45 tracking-wider block">Typo Errors</span>
-            <span className="text-2xl font-black text-red-400 font-mono">{liveErrors}</span>
-          </div>
-          <AlertTriangle className="w-8 h-8 text-red-500/10 absolute right-4 bottom-4" />
-        </div>
+          {/* Words display — MonkeyType 3-line scrolling window */}
+          <div
+            className="overflow-hidden relative"
+            style={{ height: '9rem' /* exactly 3 lines × 3rem */ }}
+          >
+            {/* Top fade hint */}
+            <div className="absolute top-0 left-0 right-0 h-6 bg-gradient-to-b from-[#0d1117] to-transparent z-10 pointer-events-none" />
+            {/* Bottom fade hint */}
+            <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-[#0d1117] to-transparent z-10 pointer-events-none" />
 
-        <div className="glass-card p-4 flex items-center justify-between border border-white/5 relative overflow-hidden bg-primary/5 border-primary/20">
-          <div>
-            <span className="text-[10px] uppercase font-bold text-primary/70 tracking-wider block">{comp.duration === 0 ? 'Stopwatch' : 'Time Left'}</span>
-            <span className="text-2xl font-black text-primary font-mono">{currentDisplayTime}</span>
-          </div>
-          <Clock className="w-8 h-8 text-primary/15 absolute right-4 bottom-4" />
-        </div>
-      </div>
+            <div
+              className="text-[1.55rem] font-mono w-full px-2"
+              style={{
+                userSelect: 'none',
+                lineHeight: '3rem',
+                transform: `translateY(-${scrollY}px)`,
+                transition: 'transform 0.15s ease',
+              }}
+            >
+              {words.map((word, wIdx) => {
+                // Compute this word's start position in fullText
+                const wordStart = wordsRef.current.slice(0, wIdx).reduce((s, w) => s + w.length + 1, 0);
+                const isLastWord = wIdx === words.length - 1;
 
-      {/* Typing Card Display Container */}
-      <div 
-        className="glass-card p-8 md:p-10 relative overflow-hidden border border-white/15 shadow-2xl cursor-text bg-slate-950 flex-grow flex items-center rounded-2xl relative min-h-[40vh]"
-        onClick={() => inputRef.current?.focus()}
-      >
-        {/* Startup Launch Card Overlay */}
-        {!isTestRunning && !isFinished && !isCountingDown && (
-          <div className="absolute inset-0 bg-slate-950/95 z-20 flex flex-col items-center justify-center p-6 text-center animate-fadeIn">
-            <div className="max-w-md space-y-5">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold border border-primary/30 bg-primary/10 text-primary">
-                READY TO COMPETE
-              </span>
-              <h2 className="text-3xl font-extrabold text-white tracking-tight">Test Your Typing Speed</h2>
-              <p className="text-xs text-foreground/70 leading-relaxed">
-                {comp.duration === 0 
-                  ? "This competition is untimed. The stopwatch counts up, and your test ends immediately when you completely finish typing the paragraph." 
-                  : `You have exactly ${Math.floor(comp.duration / 60)} Minute(s) to type as much as possible.`}
-              </p>
-              
-              <button 
-                onClick={startCountdown}
-                className="bg-primary text-slate-950 font-extrabold text-lg px-10 py-3.5 rounded-xl hover:bg-yellow-400 transition-all duration-200 shadow-[0_0_30px_rgba(226,183,20,0.3)] hover:scale-105 inline-flex items-center gap-2"
-              >
-                <Play className="w-5 h-5 fill-current" /> Start Typing Test
-              </button>
+                return (
+                  <span key={wIdx} className="inline-block">
+                    {/* Word characters */}
+                    <span
+                      ref={el => { wordSpanRefs.current[wIdx] = el; }}
+                      className="inline-block"
+                    >
+                      {word.split('').map((char, cIdx) => {
+                        const pos = wordStart + cIdx;
+                        const state = charStatesRef.current[pos] || 'u';
+                        const isCursor = charIndex === pos;
+                        return (
+                          <span key={cIdx} className="relative">
+                            {isCursor && (
+                              <span
+                                className="absolute -left-[2px] top-[5px] bottom-[5px] w-[2px] bg-primary rounded-full"
+                                style={{ animation: 'blink 1s step-start infinite' }}
+                              />
+                            )}
+                            <span className={
+                              state === 'c' ? 'text-white' :
+                              state === 'w' ? 'text-red-500 bg-red-500/15 rounded-[2px]' :
+                              'text-slate-500'
+                            }>{char}</span>
+                          </span>
+                        );
+                      })}
+                    </span>
+                    {/* Space gap + cursor when space is the expected char */}
+                    {!isLastWord && (() => {
+                      const spacePos = wordStart + word.length;
+                      const isCursorOnSpace = charIndex === spacePos;
+                      return (
+                        <span className="relative inline-block" style={{ width: '0.55em' }}>
+                          {isCursorOnSpace && (
+                            <span
+                              className="absolute left-[1px] top-[5px] bottom-[5px] w-[2px] bg-primary rounded-full"
+                              style={{ animation: 'blink 1s step-start infinite' }}
+                            />
+                          )}
+                        </span>
+                      );
+                    })()}
+                  </span>
+                );
+              })}
             </div>
           </div>
-        )}
 
-        <div className="text-2xl md:text-3xl leading-relaxed font-mono tracking-wide w-full" style={{ userSelect: 'none' }}>
-          {words.map((word, wIdx) => {
-            const isPast = wIdx < activeWordIndex;
-            const isActive = wIdx === activeWordIndex;
-
-            return (
-              <span 
-                key={wIdx} 
-                className={`inline-block mr-4 mb-3 transition-colors px-1 py-0.5 rounded ${
-                  isPast ? 'text-foreground/45' : isActive ? 'bg-primary/10 border border-primary/20 text-primary font-bold shadow-[0_0_10px_rgba(226,183,20,0.1)]' : 'text-foreground/80'
-                }`}
-              >
-                {word.split('').map((char, cIdx) => {
-                  let colorClass = '';
-                  if (isActive) {
-                    if (cIdx < inputVal.length) {
-                      colorClass = inputVal[cIdx] === char 
-                        ? 'text-white border-b-2 border-green-400' 
-                        : 'text-red-500 bg-red-500/25 font-extrabold border-b-2 border-red-500 shadow-[0_0_12px_rgba(239,68,68,0.4)] animate-pulse rounded px-0.5';
-                    } else if (cIdx === inputVal.length) {
-                      colorClass = 'border-b-2 border-primary animate-pulse text-primary';
-                    }
-                  }
-                  return <span key={cIdx} className={colorClass}>{char}</span>;
-                })}
-              </span>
-            );
-          })}
+          {/* Hidden keyboard capture input — focus target only, we preventDefault all keys */}
+          <input
+            ref={inputRef}
+            type="text"
+            className="opacity-0 absolute -top-20 left-0 w-1 h-1 pointer-events-none"
+            value=""
+            onChange={() => {}}
+            onKeyDown={handleKeyDown}
+            onCopy={preventCheat}
+            onPaste={preventCheat}
+            onCut={preventCheat}
+            onDrop={preventCheat}
+            autoComplete="off"
+            autoCorrect="off"
+            disabled={!isTestRunning}
+          />
         </div>
 
-        {/* Hidden Input for Keyboard Capture */}
-        <input
-          ref={inputRef}
-          type="text"
-          className="opacity-0 absolute -top-20 left-0 w-1 h-1 pointer-events-none"
-          value={inputVal}
-          onChange={handleInputChange}
-          onKeyDown={handleKeyDown}
-          onCopy={preventCheat}
-          onPaste={preventCheat}
-          onCut={preventCheat}
-          onDrop={preventCheat}
-          autoComplete="off"
-          autoCorrect="off"
-          disabled={!isTestRunning}
-        />
+        {/* Bottom info bar */}
+        <div className="flex justify-between items-center px-1 text-xs text-slate-600">
+          <span>
+            {participant.name} &nbsp;·&nbsp; {participant.rollNo}
+          </span>
+          <span className="italic">
+            {isTestRunning ? 'auto-submits on completion' : ''}
+          </span>
+        </div>
       </div>
 
-      <div className="flex justify-between items-center mt-6 px-2 text-xs text-foreground/50">
-        <div>
-          Candidate: <span className="font-bold text-foreground/80">{participant.name} ({participant.rollNo})</span>
-        </div>
-        {isTestRunning && (
-          <button
-            onClick={handleFinish}
-            className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 font-bold px-4 py-2 rounded-lg transition-colors flex items-center gap-1.5"
-          >
-            <ShieldAlert className="w-4 h-4" /> End & Submit Early
-          </button>
-        )}
-      </div>
+      {/* Cursor blink keyframe */}
+      <style>{`
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+      `}</style>
     </div>
   );
 }

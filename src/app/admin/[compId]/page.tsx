@@ -11,6 +11,16 @@ import * as XLSX from 'xlsx';
 import Link from 'next/link';
 import { ArrowLeft, Play, StopCircle, RotateCcw, UploadCloud, Download, Trophy, Users, AlertTriangle, Key, Clock, Search, CheckCircle2 } from 'lucide-react';
 
+// Formats seconds (with decimal ms) → MM:SS:ms
+function formatTime(seconds: number | undefined): string {
+  if (!seconds && seconds !== 0) return '-';
+  const totalMs = Math.round(seconds * 1000);
+  const mins = Math.floor(totalMs / 60000);
+  const secs = Math.floor((totalMs % 60000) / 1000);
+  const ms = totalMs % 1000; // full 3-digit milliseconds
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}:${String(ms).padStart(3, '0')}`;
+}
+
 export default function CompetitionManage({ params }: { params: { compId: string } }) {
   const { isAuthenticated, isLoading: isAuthLoading } = useAdminAuth();
   const router = useRouter();
@@ -204,6 +214,7 @@ export default function CompetitionManage({ params }: { params: { compId: string
       WPM: p.score?.wpm || 0,
       Accuracy: p.score?.accuracy ? p.score.accuracy + '%' : '0%',
       Errors: p.score?.errors || 0,
+      'Time Taken (MM:SS:ms)': p.score?.time != null ? formatTime(p.score.time) : '-',
       Status: p.status,
       Warnings: p.warnings || 0
     }));
@@ -394,13 +405,14 @@ export default function CompetitionManage({ params }: { params: { compId: string
                     <th className="p-3">WPM</th>
                     <th className="p-3">Accuracy</th>
                     <th className="p-3">Errors</th>
+                    <th className="p-3">Time Taken</th>
                     <th className="p-3">Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredParticipants.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="p-8 text-center text-foreground/40 text-xs">
+                      <td colSpan={9} className="p-8 text-center text-foreground/40 text-xs">
                         No participants found matching your criteria.
                       </td>
                     </tr>
@@ -414,6 +426,9 @@ export default function CompetitionManage({ params }: { params: { compId: string
                         <td className="p-3 font-black text-primary text-base">{p.score?.wpm || 0}</td>
                         <td className="p-3 font-semibold">{p.score?.accuracy || 0}%</td>
                         <td className="p-3 font-semibold text-red-400">{p.score?.errors || 0}</td>
+                        <td className="p-3 font-mono text-xs font-bold text-cyan-300">
+                          {p.score?.time != null ? formatTime(p.score.time) : <span className="text-foreground/30">-</span>}
+                        </td>
                         <td className="p-3">
                           <span className={`px-2.5 py-1 rounded-full text-[11px] font-extrabold ${
                             p.status === 'Completed' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :

@@ -5,8 +5,8 @@ import Link from 'next/link'
 import { Keyboard, Shield, Trophy } from 'lucide-react'
 
 export const metadata: Metadata = {
-  title: 'Akshara Vega - Dr. B. Hegde First Grade College, Kundapura',
-  description: 'High-performance speed typing competition platform for Dr. B. Hegde First Grade College, Kundapura',
+  title: 'Akshara Vega - Dr.B.B.HEGDE FIRST GRADE COLLEGE, Kundapura',
+  description: 'High-performance speed typing competition platform for Dr.B.B.HEGDE FIRST GRADE COLLEGE, Kundapura',
 }
 
 export default function RootLayout({
@@ -28,11 +28,11 @@ export default function RootLayout({
                 {/* Brand Logo */}
                 <Link href="/" className="flex items-center gap-3 group shrink-0">
                   <div className="w-10 h-10 rounded-full overflow-hidden border border-primary/30 shadow-[0_0_15px_rgba(226,183,20,0.4)] group-hover:scale-105 transition-transform bg-white">
-                    <img 
-                      src="/logo.jpg" 
-                      alt="College Logo" 
+                    <img
+                      src="/logo.jpg"
+                      alt="College Logo"
                       className="w-full h-full object-cover scale-105 animate-pulse"
-                      style={{ clipPath: 'circle(50%)' }} 
+                      style={{ clipPath: 'circle(50%)' }}
                     />
                   </div>
                   <div>
@@ -45,20 +45,20 @@ export default function RootLayout({
 
                 {/* Centered College Name */}
                 <div className="hidden lg:flex flex-col items-center text-center mx-4">
-                  <span className="text-xs md:text-sm font-extrabold text-white tracking-wider uppercase">Dr. B. HEGDE FIRST GRADE COLLEGE</span>
+                  <span className="text-xs md:text-sm font-extrabold text-white tracking-wider uppercase">Dr.B.B.HEGDE FIRST GRADE COLLEGE</span>
                   <span className="text-[9px] md:text-xs text-primary tracking-widest font-bold uppercase">KUNDAPURA</span>
                 </div>
 
                 {/* Navigation Links */}
                 <nav className="flex items-center gap-3">
-                  <Link 
-                    href="/" 
+                  <Link
+                    href="/"
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-foreground/80 hover:text-white hover:bg-white/5 transition-colors font-medium"
                   >
                     <Trophy className="w-4 h-4 text-primary" /> Competitions
                   </Link>
-                  <Link 
-                    href="/admin" 
+                  <Link
+                    href="/admin"
                     className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold bg-primary text-slate-950 hover:bg-yellow-400 transition-all shadow-[0_0_15px_rgba(226,183,20,0.3)] hover:scale-105"
                   >
                     <Shield className="w-4 h-4" /> Admin Portal
@@ -74,7 +74,7 @@ export default function RootLayout({
 
             {/* Footer */}
             <footer className="w-full border-t border-white/5 py-6 text-center text-xs text-foreground/45 font-medium">
-              Akshara Vega • Dr. B. Hegde First Grade College, Kundapura
+              Akshara Vega • Dr.B.B.HEGDE FIRST GRADE COLLEGE, Kundapura
             </footer>
           </div>
         </AdminAuthProvider>
