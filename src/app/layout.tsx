@@ -5,8 +5,8 @@ import Link from 'next/link'
 import { Keyboard, Shield, Trophy } from 'lucide-react'
 
 export const metadata: Metadata = {
-  title: 'Techmanthan Pro - Enterprise Speed Typing Platform',
-  description: 'High-performance speed typing competition platform for schools and organizations',
+  title: 'Akshara Vega - Dr. B. Hegde First Grade College, Kundapura',
+  description: 'High-performance speed typing competition platform for Dr. B. Hegde First Grade College, Kundapura',
 }
 
 export default function RootLayout({
@@ -24,26 +24,29 @@ export default function RootLayout({
           <div className="min-h-screen flex flex-col items-center">
             {/* SaaS Navbar Header */}
             <header className="w-full border-b border-white/10 bg-slate-950/60 backdrop-blur-xl sticky top-0 z-40">
-              <div className="max-w-7xl mx-auto px-4 md:px-8 py-3.5 flex items-center justify-between">
+              <div className="max-w-7xl mx-auto px-4 md:px-8 py-3 flex items-center justify-between">
                 {/* Brand Logo */}
-                <Link href="/" className="flex items-center gap-3 group">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary to-amber-500 p-0.5 shadow-[0_0_15px_rgba(226,183,20,0.4)] group-hover:scale-105 transition-transform">
-                    <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
-                      <Keyboard className="w-5 h-5 text-primary" />
-                    </div>
+                <Link href="/" className="flex items-center gap-3 group shrink-0">
+                  <div className="w-10 h-10 rounded-full overflow-hidden border border-primary/30 shadow-[0_0_15px_rgba(226,183,20,0.4)] group-hover:scale-105 transition-transform bg-white">
+                    <img 
+                      src="/logo.jpg" 
+                      alt="College Logo" 
+                      className="w-full h-full object-cover scale-105 animate-pulse"
+                      style={{ clipPath: 'circle(50%)' }} 
+                    />
                   </div>
                   <div>
-                    <div className="font-extrabold text-lg text-white tracking-tight flex items-center gap-2">
-                      Techmanthan <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded font-mono border border-primary/30">PRO</span>
+                    <div className="font-extrabold text-lg text-white tracking-tight leading-none">
+                      Akshara Vega
                     </div>
-                    <div className="text-[10px] text-foreground/50 tracking-wider uppercase font-semibold">Speed Typing SaaS</div>
+                    <span className="text-[9px] font-mono text-primary font-bold tracking-widest uppercase">TYPING PLATFORM</span>
                   </div>
                 </Link>
 
-                {/* Status Ticker Badge */}
-                <div className="hidden md:flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/80 border border-white/10 text-xs">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                  <span className="text-foreground/70 font-medium">Live Competitions Active</span>
+                {/* Centered College Name */}
+                <div className="hidden lg:flex flex-col items-center text-center mx-4">
+                  <span className="text-xs md:text-sm font-extrabold text-white tracking-wider uppercase">Dr. B. HEGDE FIRST GRADE COLLEGE</span>
+                  <span className="text-[9px] md:text-xs text-primary tracking-widest font-bold uppercase">KUNDAPURA</span>
                 </div>
 
                 {/* Navigation Links */}
@@ -70,8 +73,8 @@ export default function RootLayout({
             </main>
 
             {/* Footer */}
-            <footer className="w-full border-t border-white/5 py-6 text-center text-xs text-foreground/40 font-medium">
-              Techmanthan Pro • High-Performance SaaS Competition Engine • Built for 80+ Concurrent Students
+            <footer className="w-full border-t border-white/5 py-6 text-center text-xs text-foreground/45 font-medium">
+              Akshara Vega • Dr. B. Hegde First Grade College, Kundapura
             </footer>
           </div>
         </AdminAuthProvider>
