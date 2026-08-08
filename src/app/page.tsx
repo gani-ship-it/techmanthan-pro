@@ -45,16 +45,12 @@ export default function HomePage() {
       {/* Hero Banner Section */}
       <section className="w-full text-center max-w-4xl pt-4">
         <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/30 text-primary text-xs font-bold uppercase tracking-widest mb-6">
-          <Zap className="w-4 h-4" /> Built for High-Concurrency Competitions
+          <Zap className="w-4 h-4" /> TECH-MANTHAN 6.0
         </div>
 
         <h1 className="text-4xl md:text-6xl font-extrabold text-white tracking-tight leading-tight mb-6">
-          Speed Typing <span className="bg-gradient-to-r from-primary via-amber-400 to-cyan-400 bg-clip-text text-transparent">Excellence</span>
+          AKSHARA <span className="bg-gradient-to-r from-primary via-amber-400 to-cyan-400 bg-clip-text text-transparent">VEGA</span>
         </h1>
-
-        <p className="text-lg md:text-xl text-foreground/70 max-w-2xl mx-auto leading-relaxed mb-10">
-          Enter your pre-registered Roll Number and contest Unique ID to compete in real-time speed typing challenges.
-        </p>
 
         {/* Feature Badges Grid */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 max-w-2xl mx-auto mb-8">
