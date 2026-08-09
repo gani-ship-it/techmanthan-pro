@@ -23,6 +23,7 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
   const [comp, setComp] = useState<Competition | null>(null);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [hasCompleted, setHasCompleted] = useState(false);
   
   // Form State
   const [name, setName] = useState('');
@@ -47,6 +48,12 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
       }
     };
     fetchComp();
+
+    if (typeof window !== 'undefined') {
+      if (localStorage.getItem(`techmanthan_completed_${params.compId}`)) {
+        setHasCompleted(true);
+      }
+    }
   }, [params.compId]);
 
   const handleParticipate = async (e: React.FormEvent) => {
@@ -206,7 +213,14 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
 
           {/* Action CTA Button */}
           <div className="pt-4 text-center">
-            {comp.status === 'Live' ? (
+            {hasCompleted ? (
+              <div className="px-8 py-4 bg-emerald-900/40 border border-emerald-500/30 rounded-xl text-emerald-400 inline-block font-semibold shadow-lg">
+                <div className="flex items-center gap-2">
+                  <UserCheck className="w-5 h-5" />
+                  <span>You have successfully completed this competition.</span>
+                </div>
+              </div>
+            ) : comp.status === 'Live' ? (
               <button 
                 onClick={() => setShowModal(true)}
                 className="bg-primary text-slate-950 font-extrabold text-xl px-12 py-4 rounded-xl hover:bg-yellow-400 transition-all duration-200 shadow-[0_0_30px_rgba(226,183,20,0.4)] hover:scale-105 inline-flex items-center gap-3"

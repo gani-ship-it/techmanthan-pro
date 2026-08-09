@@ -144,6 +144,26 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
         setParticipant(p);
         setWarnings(p.warnings || 0);
 
+        // Check for existing start time to prevent refresh timer resets
+        const existingStartTimeStr = localStorage.getItem(`techmanthan_start_${c.id}`);
+        if (existingStartTimeStr) {
+          const startTimeMs = parseInt(existingStartTimeStr, 10);
+          const elapsedSecs = Math.max(0, Math.round((Date.now() - startTimeMs) / 1000));
+          if (c.duration > 0 && elapsedSecs >= c.duration) {
+             // Time already expired!
+             alert("Your test time has already expired.");
+             router.push('/');
+             return;
+          }
+          // Adjust remaining time based on actual elapsed time
+          if (c.duration > 0) {
+            setTimeLeft(c.duration - elapsedSecs);
+          }
+          setElapsedSeconds(elapsedSecs);
+          // Set ref to real start time
+          startTimeRef.current = startTimeMs;
+        }
+
         // Pick Passage & Setup Buffer
         const randomText = c.texts[Math.floor(Math.random() * c.texts.length)];
         const parsedWords = randomText.trim().split(/\s+/);
@@ -246,10 +266,15 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
       await setDoc(pRef, finalData, { merge: true });
       localStorage.removeItem('techmanthan_pending_score');
       localStorage.removeItem('techmanthan_session');
+      localStorage.removeItem(`techmanthan_start_${comp.id}`);
+      localStorage.setItem(`techmanthan_completed_${comp.id}`, 'true');
       setSyncSuccess(true);
     } catch (err) {
       console.warn("Network submission failed. Score backed up locally in localStorage.", err);
       setIsOfflineSaved(true);
+      // Even if offline, mark as completed locally so UI updates
+      localStorage.removeItem(`techmanthan_start_${comp.id}`);
+      localStorage.setItem(`techmanthan_completed_${comp.id}`, 'true');
     }
   }, [comp, participant]);
 
@@ -337,7 +362,14 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
         setIsCountingDown(false);
         setIsTestRunning(true);
         isTestRunningRef.current = true;
-        startTimeRef.current = Date.now();
+        
+        // If there was an existing start time (from a refresh), don't reset it
+        if (!startTimeRef.current) {
+          const now = Date.now();
+          startTimeRef.current = now;
+          localStorage.setItem(`techmanthan_start_${comp.id}`, now.toString());
+        }
+        
         setTimeout(() => inputRef.current?.focus(), 50);
 
         // Core ticking timer thread
