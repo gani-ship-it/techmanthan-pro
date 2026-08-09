@@ -210,6 +210,15 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
     return () => window.removeEventListener('online', syncPendingScore);
   }, [syncPendingScore]);
 
+  // Helper: clear all localStorage keys for this competition (so next student can use same PC)
+  const clearLocalSession = useCallback(() => {
+    if (!comp) return;
+    localStorage.removeItem('techmanthan_session');
+    localStorage.removeItem(`techmanthan_completed_${comp.id}`);
+    localStorage.removeItem(`techmanthan_start_${comp.id}`);
+    localStorage.removeItem('techmanthan_pending_score');
+  }, [comp]);
+
   // 3. Score Submission with Offline Protection
   const submitScore = useCallback(async (disqualified = false) => {
     if (!comp || !participant || isFinishedRef.current) return;
@@ -267,14 +276,11 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
       localStorage.removeItem('techmanthan_pending_score');
       localStorage.removeItem('techmanthan_session');
       localStorage.removeItem(`techmanthan_start_${comp.id}`);
-      localStorage.setItem(`techmanthan_completed_${comp.id}`, 'true');
       setSyncSuccess(true);
     } catch (err) {
       console.warn("Network submission failed. Score backed up locally in localStorage.", err);
       setIsOfflineSaved(true);
-      // Even if offline, mark as completed locally so UI updates
       localStorage.removeItem(`techmanthan_start_${comp.id}`);
-      localStorage.setItem(`techmanthan_completed_${comp.id}`, 'true');
     }
   }, [comp, participant]);
 
@@ -533,6 +539,7 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
           <button
             onClick={() => {
               if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+              clearLocalSession();
               router.push('/');
             }}
             className="bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-lg font-bold transition-transform hover:scale-105"
@@ -589,6 +596,7 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
             <button
               onClick={() => {
                 if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+                clearLocalSession();
                 router.push('/');
               }}
               className="bg-primary text-background font-extrabold px-8 py-4 rounded-lg hover:bg-yellow-400 w-full text-xl transition-all shadow-[0_0_25px_rgba(226,183,20,0.4)] hover:scale-[1.02]"
