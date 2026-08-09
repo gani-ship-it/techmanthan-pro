@@ -263,7 +263,7 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
               <p className="text-xs text-foreground/70">Fill out your information and Unique Password to start</p>
             </div>
             
-            <form onSubmit={handleParticipate} className="space-y-4">
+            <form onSubmit={handleParticipate} className="space-y-4" autoComplete="off">
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-foreground/80 mb-1.5 flex items-center gap-1.5">
                   <User className="w-3.5 h-3.5 text-primary" /> Student Full Name
@@ -271,6 +271,7 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
                 <input 
                   type="text" 
                   required 
+                  autoComplete="off"
                   className="w-full glass-input rounded-lg p-3 text-sm outline-none"
                   placeholder="e.g. Rahul Sharma"
                   value={name}
@@ -286,6 +287,7 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
                 <input 
                   type="text" 
                   required 
+                  autoComplete="off"
                   className="w-full glass-input rounded-lg p-3 text-sm outline-none uppercase font-mono tracking-wider"
                   placeholder="e.g. 101 or 24BCA102"
                   value={rollNo}
@@ -317,6 +319,9 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
                 <input 
                   type="password" 
                   required 
+                  autoComplete="new-password"
+                  data-lpignore="true"
+                  data-form-type="other"
                   className="w-full glass-input rounded-lg p-3 text-sm outline-none font-mono"
                   placeholder="Enter contest password"
                   value={uniqueId}
