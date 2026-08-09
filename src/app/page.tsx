@@ -127,12 +127,8 @@ export default function HomePage() {
                   
                   {/* Banner Image or Gradient */}
                   <div 
-                    className="w-full h-44 bg-cover bg-center relative"
-                    style={{ 
-                      backgroundImage: comp.imageUrl 
-                        ? `url(${comp.imageUrl})` 
-                        : 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)' 
-                    }}
+                    className={`w-full h-44 bg-cover bg-center relative ${!comp.imageUrl ? 'bg-hero-pattern' : ''}`}
+                    style={comp.imageUrl ? { backgroundImage: `url(${comp.imageUrl})` } : {}}
                   >
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent" />
                     

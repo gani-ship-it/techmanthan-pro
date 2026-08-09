@@ -125,12 +125,8 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
       <div className="glass-card overflow-hidden border border-white/10 shadow-2xl relative">
         {/* Banner Section */}
         <div 
-          className="w-full h-72 bg-cover bg-center relative flex items-end p-8"
-          style={{ 
-            backgroundImage: comp.imageUrl 
-              ? `url(${comp.imageUrl})` 
-              : 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)' 
-          }}
+          className={`w-full h-72 bg-cover bg-center relative flex items-end p-8 ${!comp.imageUrl ? 'bg-hero-pattern' : ''}`}
+          style={comp.imageUrl ? { backgroundImage: `url(${comp.imageUrl})` } : {}}
         >
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent" />
           
