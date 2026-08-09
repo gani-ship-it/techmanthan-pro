@@ -116,6 +116,15 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
         console.warn("Background Firestore registration sync warning:", err);
       });
 
+      // Request fullscreen before navigating to enforce anti-cheat environment
+      try {
+        if (document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen();
+        }
+      } catch (fsErr) {
+        console.warn('Fullscreen request failed (may need user gesture):', fsErr);
+      }
+
       // Redirect immediately to typing engine
       router.push(`/test/${comp.id}`);
 
