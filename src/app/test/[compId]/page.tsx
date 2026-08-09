@@ -329,14 +329,25 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
       }
     };
 
+    // Detect fullscreen exit (Escape or any method) — warn & re-enter fullscreen
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement && !isFinishedRef.current && !isDisqualifiedRef.current) {
+        triggerWarning();
+        // Attempt to re-enter fullscreen automatically
+        document.documentElement.requestFullscreen().catch(() => {});
+      }
+    };
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('blur', handleWindowBlur);
     window.addEventListener('keydown', handleGlobalKeyDown);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('blur', handleWindowBlur);
       window.removeEventListener('keydown', handleGlobalKeyDown);
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
     };
   }, [loading, isFinished, isDisqualified, triggerWarning]);
 
@@ -525,7 +536,7 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
       {/* Anti-Cheat Warning Popup */}
       {showWarning && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 bg-red-600/90 backdrop-blur text-white px-5 py-2.5 rounded-lg shadow-2xl font-bold text-sm z-50 border border-red-400/50">
-          ⚠️ Warning {warnings}/3 — switching tabs is prohibited!
+          ⚠️ Warning {warnings}/3 — tab switching or exiting fullscreen is prohibited!
         </div>
       )}
 
