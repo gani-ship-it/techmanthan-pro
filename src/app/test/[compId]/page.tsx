@@ -341,6 +341,10 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
     setIsTestRunning(false);
     isTestRunningRef.current = false;
     if (timerRef.current) clearInterval(timerRef.current);
+    // Exit fullscreen when test ends
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch((e) => console.warn('exitFullscreen failed:', e));
+    }
     submitScore(false);
   }, [submitScore]);
 
@@ -527,7 +531,10 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
             Your session was terminated due to anti-cheat violations (tab switching).
           </p>
           <button
-            onClick={() => router.push('/')}
+            onClick={() => {
+              if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+              router.push('/');
+            }}
             className="bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-lg font-bold transition-transform hover:scale-105"
           >
             Return to Home
@@ -580,7 +587,10 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
             )}
 
             <button
-              onClick={() => router.push('/')}
+              onClick={() => {
+                if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+                router.push('/');
+              }}
               className="bg-primary text-background font-extrabold px-8 py-4 rounded-lg hover:bg-yellow-400 w-full text-xl transition-all shadow-[0_0_25px_rgba(226,183,20,0.4)] hover:scale-[1.02]"
             >
               Return to Competitions
