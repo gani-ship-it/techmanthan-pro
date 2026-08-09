@@ -129,15 +129,27 @@ export default function CompetitionManage({ params }: { params: { compId: string
     }
   }, [params.compId, isAuthenticated, isAuthLoading, router]);
 
+  const [isToggling, setIsToggling] = useState(false);
+
   const toggleStatus = async () => {
-    if (!comp) return;
+    if (!comp || isToggling) return;
     const nextStatus = comp.status === 'Upcoming' ? 'Live' : comp.status === 'Live' ? 'Ended' : 'Upcoming';
+    
     // Fix #9: Confirm before ending a live competition to prevent accidental click
     if (comp.status === 'Live') {
       const confirmed = window.confirm(`Are you sure you want to END the live competition "${comp.name}"? Students currently taking the test will be unaffected but no new participants can join.`);
       if (!confirmed) return;
     }
-    await updateDoc(doc(db, 'competitions', comp.id), { status: nextStatus });
+
+    setIsToggling(true);
+    try {
+      await updateDoc(doc(db, 'competitions', comp.id), { status: nextStatus });
+    } catch (err: any) {
+      console.error("Failed to update status:", err);
+      alert(`Failed to update status: ${err.message || 'Unknown error'}`);
+    } finally {
+      setIsToggling(false);
+    }
   };
 
   // Chunked CSV upload handling (Max 400 operations per batch to prevent Firestore 500-item limit crash)
@@ -275,14 +287,17 @@ export default function CompetitionManage({ params }: { params: { compId: string
         {/* Status Toggle CTA */}
         <button 
           onClick={toggleStatus}
-          className={`font-extrabold px-6 py-3.5 rounded-xl shadow-lg transition-all hover:scale-105 inline-flex items-center gap-2 text-slate-950 ${
+          disabled={isToggling}
+          className={`font-extrabold px-6 py-3.5 rounded-xl shadow-lg transition-all inline-flex items-center gap-2 text-slate-950 ${
+            isToggling ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'
+          } ${
             comp.status === 'Upcoming' ? 'bg-emerald-400 hover:bg-emerald-300' :
             comp.status === 'Live' ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-cyan-400 hover:bg-cyan-300'
           }`}
         >
-          {comp.status === 'Upcoming' && <><Play className="w-5 h-5" /> Launch Competition (Go Live)</>}
-          {comp.status === 'Live' && <><StopCircle className="w-5 h-5" /> End Competition Now</>}
-          {comp.status === 'Ended' && <><RotateCcw className="w-5 h-5" /> Reset to Upcoming</>}
+          {comp.status === 'Upcoming' && <><Play className="w-5 h-5" /> {isToggling ? 'Launching...' : 'Launch Competition (Go Live)'}</>}
+          {comp.status === 'Live' && <><StopCircle className="w-5 h-5" /> {isToggling ? 'Ending...' : 'End Competition Now'}</>}
+          {comp.status === 'Ended' && <><RotateCcw className="w-5 h-5" /> {isToggling ? 'Resetting...' : 'Reset to Upcoming'}</>}
         </button>
       </div>
 
