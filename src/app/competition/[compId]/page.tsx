@@ -32,6 +32,16 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
   const [errorMsg, setErrorMsg] = useState('');
   const [verifying, setVerifying] = useState(false);
 
+  // Fix #2: Helper to reset form state so next student starts with empty fields
+  const resetForm = () => {
+    setName('');
+    setRollNo('');
+    setStudentClass(CLASS_OPTIONS[0]);
+    setUniqueId('');
+    setErrorMsg('');
+    setVerifying(false);
+  };
+
   useEffect(() => {
     const fetchComp = async () => {
       try {
@@ -109,6 +119,7 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
         console.warn("Background Firestore registration sync warning:", err);
       });
 
+      // Fix #3: Fullscreen then navigate — verifying stays true during navigation (component unmounts anyway)
       // Request fullscreen before navigating to enforce anti-cheat environment
       try {
         if (document.documentElement.requestFullscreen) {
@@ -118,6 +129,7 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
         console.warn('Fullscreen request failed (may need user gesture):', fsErr);
       }
 
+      resetForm(); // Fix #2: clear form so next student starts fresh
       // Redirect immediately to typing engine
       router.push(`/test/${comp.id}`);
 
@@ -167,7 +179,7 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
             <div className="flex items-center gap-4 text-xs font-mono text-foreground/70 bg-slate-950/80 p-3 rounded-xl border border-white/10 backdrop-blur-md">
               <div>
                 <span className="text-foreground/40 block">DURATION</span>
-                <span className="text-white font-bold text-sm">{comp.duration === 0 ? 'No Limit' : `${Math.floor(comp.duration / 60)} Mins`}</span>
+                <span className="text-white font-bold text-sm">{comp.duration === 0 ? 'No Limit' : comp.duration < 60 ? `${comp.duration}s` : `${Math.floor(comp.duration / 60)} Mins`}</span>
               </div>
               <div className="h-6 w-px bg-white/10" />
               <div>
@@ -204,7 +216,7 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-emerald-400 font-bold">•</span>
-                <span>Timer starts automatically when you type your first keystroke.</span>
+                <span>Timer starts after the <strong>3-2-1 countdown</strong> when you click Start. Do not switch tabs or exit fullscreen.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-red-400 font-bold">•</span>
@@ -237,7 +249,7 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
           <div className="glass-card w-full max-w-md p-6 sm:p-8 relative border border-primary/30 shadow-2xl animate-fadeIn bg-slate-900/95 my-auto max-h-[90vh] overflow-y-auto">
 
             <button 
-              onClick={() => setShowModal(false)} 
+              onClick={() => { setShowModal(false); resetForm(); }} 
               className="absolute top-4 right-4 text-foreground/50 hover:text-red-400 transition-colors p-1"
             >
               <X className="w-5 h-5" />

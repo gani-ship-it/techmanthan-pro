@@ -7,10 +7,21 @@ import { Competition, Participant } from '@/types';
 import { useRouter } from 'next/navigation';
 import { Play } from 'lucide-react';
 
+// Fix #5: Singleton AudioContext — reused across all keystrokes to avoid browser 6-context limit
+let _sharedAudioCtx: AudioContext | null = null;
+const getAudioCtx = (): AudioContext | null => {
+  if (typeof window === 'undefined') return null;
+  if (!_sharedAudioCtx || _sharedAudioCtx.state === 'closed') {
+    _sharedAudioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+  }
+  return _sharedAudioCtx;
+};
+
 const playAudioTone = (freq: number, type: OscillatorType, duration: number) => {
-  if (typeof window === 'undefined') return;
   try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') ctx.resume();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = type;
@@ -22,7 +33,7 @@ const playAudioTone = (freq: number, type: OscillatorType, duration: number) => 
     osc.start();
     osc.stop(ctx.currentTime + duration);
   } catch (e) {
-    console.warn("Audio Context blocked or unsupported:", e);
+    console.warn("Audio tone error:", e);
   }
 };
 
@@ -84,6 +95,8 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
 
   const inputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  // Fix #1: Debounce flag — prevents blur + fullscreenchange both firing a warning on Escape
+  const warningDebounceRef = useRef(false);
 
   // 1. Initial Load & Session Verification
   useEffect(() => {
@@ -162,6 +175,13 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
           setElapsedSeconds(elapsedSecs);
           // Set ref to real start time
           startTimeRef.current = startTimeMs;
+        }
+
+        // Fix #6: Guard against empty or missing texts array
+        if (!c.texts || c.texts.length === 0) {
+          alert('This competition has no text passages configured. Please contact the coordinator.');
+          router.push('/');
+          return;
         }
 
         // Pick Passage & Setup Buffer
@@ -285,8 +305,13 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
   }, [comp, participant]);
 
   // 4. Anti-Cheat Handlers & Keyboard Lockdowns
+  // Fix #1: Debounced triggerWarning — a 500ms window prevents blur + fullscreenchange
+  // from both firing on a single Escape keypress (which would wrongly count as 2 warnings)
   const triggerWarning = useCallback(async () => {
     if (isFinishedRef.current || isDisqualifiedRef.current || !participant || !comp) return;
+    if (warningDebounceRef.current) return; // already processing a warning in this window
+    warningDebounceRef.current = true;
+    setTimeout(() => { warningDebounceRef.current = false; }, 500);
 
     setWarnings(prev => {
       const nextWarnings = prev + 1;
@@ -662,11 +687,17 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
                 <p className="text-xs text-slate-500 leading-relaxed">
                   {comp.duration === 0
                     ? 'Untimed — auto-submits when you finish the paragraph.'
-                    : `You have ${Math.floor(comp.duration / 60)} minute(s). Auto-submits when time is up.`}
+                    : `You have ${comp.duration < 60 ? `${comp.duration}s` : `${Math.floor(comp.duration / 60)} minute(s)`}. Auto-submits when time is up.`}
                 </p>
+                {/* Fix #8: Updated rule — timer starts after countdown, not on first keystroke */}
+                <p className="text-[10px] text-slate-600">
+                  Timer starts after the 3-2-1 countdown. Do not switch tabs or exit fullscreen.
+                </p>
+                {/* Fix #4: Disable button while countdown is already in progress */}
                 <button
                   onClick={startCountdown}
-                  className="bg-primary text-slate-950 font-extrabold text-base px-10 py-3 rounded-xl hover:bg-yellow-400 transition-all shadow-[0_0_25px_rgba(226,183,20,0.3)] hover:scale-105 inline-flex items-center gap-2"
+                  disabled={isCountingDown}
+                  className="bg-primary text-slate-950 font-extrabold text-base px-10 py-3 rounded-xl hover:bg-yellow-400 transition-all shadow-[0_0_25px_rgba(226,183,20,0.3)] hover:scale-105 inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                 >
                   <Play className="w-4 h-4 fill-current" /> Start Typing Test
                 </button>

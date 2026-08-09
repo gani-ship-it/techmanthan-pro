@@ -132,6 +132,11 @@ export default function CompetitionManage({ params }: { params: { compId: string
   const toggleStatus = async () => {
     if (!comp) return;
     const nextStatus = comp.status === 'Upcoming' ? 'Live' : comp.status === 'Live' ? 'Ended' : 'Upcoming';
+    // Fix #9: Confirm before ending a live competition to prevent accidental click
+    if (comp.status === 'Live') {
+      const confirmed = window.confirm(`Are you sure you want to END the live competition "${comp.name}"? Students currently taking the test will be unaffected but no new participants can join.`);
+      if (!confirmed) return;
+    }
     await updateDoc(doc(db, 'competitions', comp.id), { status: nextStatus });
   };
 
@@ -174,6 +179,7 @@ export default function CompetitionManage({ params }: { params: { compId: string
               const sec = (row['Section'] || '').toString().trim();
 
               const pRef = doc(db, `competitions/${comp!.id}/participants`, rollNo);
+              // Fix #7: Use merge:true so re-uploading CSV never wipes existing submitted scores
               batch.set(pRef, {
                 rollNo,
                 name,
@@ -183,7 +189,7 @@ export default function CompetitionManage({ params }: { params: { compId: string
                 hasParticipated: false,
                 status: 'Pending',
                 warnings: 0
-              });
+              }, { merge: true });
             }
 
             await batch.commit();
