@@ -12,8 +12,14 @@ service cloud.firestore {
       // Subcollection: Participants
       match /participants/{rollNo} {
         allow read: if true;
-        // Participant registration and score updates
-        allow create, update: if true;
+        // Allow creation of new participant or update of existing participant.
+        // If updating an existing participant, block reverting 'hasParticipated' to false, 
+        // or reverting a completed/disqualified status back to pending, unless auth'd as admin.
+        allow create: if true;
+        allow update: if true 
+                      && (request.auth != null || 
+                          (resource.data.hasParticipated == false || request.resource.data.hasParticipated == true) &&
+                          (resource.data.status == 'Pending' || request.resource.data.status == resource.data.status));
         allow delete: if request.auth != null;
       }
     }

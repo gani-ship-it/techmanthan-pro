@@ -76,6 +76,17 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
     try {
       const participantRef = doc(db, `competitions/${comp.id}/participants`, formattedRollNo);
 
+      // Check if participant already exists and has completed the test
+      const pSnap = await getDoc(participantRef);
+      if (pSnap.exists()) {
+        const pData = pSnap.data();
+        if (pData.hasParticipated || pData.status === 'Completed' || pData.status === 'Disqualified') {
+          setErrorMsg('You have already completed or submitted a test for this competition. Multiple attempts are not allowed.');
+          setVerifying(false);
+          return;
+        }
+      }
+
       // Save session info locally
       localStorage.setItem('techmanthan_session', JSON.stringify({
         compId: comp.id,
