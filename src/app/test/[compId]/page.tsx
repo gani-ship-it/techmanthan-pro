@@ -49,6 +49,7 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
   const [warnings, setWarnings] = useState(0);
   const [isDisqualified, setIsDisqualified] = useState(false);
   const [showWarning, setShowWarning] = useState(false);
+  const [isFullscreenExited, setIsFullscreenExited] = useState(false); // blocks typing until re-entry
 
   // Typing Render State
   const [words, setWords] = useState<string[]>([]);
@@ -354,12 +355,15 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
       }
     };
 
-    // Detect fullscreen exit (Escape or any method) — warn & re-enter fullscreen
+    // Detect fullscreen exit (Escape or any method)
+    // Cannot auto re-enter — browsers require a direct user click for requestFullscreen.
+    // Instead: show a blocking overlay with a button the student must click.
     const handleFullscreenChange = () => {
       if (!document.fullscreenElement && !isFinishedRef.current && !isDisqualifiedRef.current) {
         triggerWarning();
-        // Attempt to re-enter fullscreen automatically
-        document.documentElement.requestFullscreen().catch(() => {});
+        setIsFullscreenExited(true); // show blocking overlay
+      } else if (document.fullscreenElement) {
+        setIsFullscreenExited(false); // fullscreen restored
       }
     };
 
@@ -562,6 +566,33 @@ export default function TypingTestEngine({ params }: { params: { compId: string 
       {showWarning && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 bg-red-600/90 backdrop-blur text-white px-5 py-2.5 rounded-lg shadow-2xl font-bold text-sm z-50 border border-red-400/50">
           ⚠️ Warning {warnings}/3 — tab switching or exiting fullscreen is prohibited!
+        </div>
+      )}
+
+      {/* Fullscreen Exit Blocking Overlay — student must click to re-enter */}
+      {isFullscreenExited && !isDisqualified && !isFinished && (
+        <div className="fixed inset-0 bg-slate-950/98 backdrop-blur-xl z-[300] flex flex-col items-center justify-center text-center p-6">
+          <div className="text-6xl mb-6">⚠️</div>
+          <h2 className="text-3xl font-black text-red-400 mb-3 tracking-tight">Fullscreen Exited!</h2>
+          <p className="text-slate-400 text-sm max-w-sm mb-2 leading-relaxed">
+            You exited fullscreen mode. This has been recorded as a <strong className="text-red-400">violation ({warnings}/3)</strong>.
+          </p>
+          <p className="text-slate-500 text-xs mb-8">
+            3 violations will result in immediate disqualification.
+          </p>
+          <button
+            onClick={() => {
+              document.documentElement.requestFullscreen()
+                .then(() => setIsFullscreenExited(false))
+                .catch(() => {
+                  // If browser still denies, let them try again
+                  setIsFullscreenExited(false);
+                });
+            }}
+            className="bg-primary text-slate-950 font-extrabold text-lg px-10 py-4 rounded-xl hover:bg-yellow-400 transition-all shadow-[0_0_30px_rgba(226,183,20,0.5)] hover:scale-105"
+          >
+            🔒 Return to Fullscreen & Continue Test
+          </button>
         </div>
       )}
 
