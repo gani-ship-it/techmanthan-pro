@@ -280,7 +280,7 @@ export default function CompetitionManage({ params }: { params: { compId: string
           <div className="flex items-center gap-4 text-xs font-mono text-foreground/70">
             <span className="flex items-center gap-1"><Key className="w-3.5 h-3.5 text-primary" /> Passcode: <strong>{comp.password}</strong></span>
             <span>•</span>
-            <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-cyan-400" /> Duration: <strong>{Math.floor(comp.duration / 60)}m</strong></span>
+            <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-cyan-400" /> Duration: <strong>{comp.duration === 0 ? 'No Limit' : comp.duration < 60 ? `${comp.duration}s` : `${Math.floor(comp.duration / 60)}m`}</strong></span>
           </div>
         </div>
 

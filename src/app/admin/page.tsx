@@ -203,7 +203,7 @@ export default function AdminDashboard() {
                   <p className="text-xs text-foreground/70 mb-4 line-clamp-2 leading-relaxed">{comp.description}</p>
                   <div className="flex items-center gap-1.5 text-xs text-foreground/60 mb-6 font-mono">
                     <Clock className="w-3.5 h-3.5 text-primary" />
-                    <span>{comp.duration === 0 ? 'NO TIME LIMIT' : `${Math.floor(comp.duration / 60)} MINS`}</span>
+                    <span>{comp.duration === 0 ? 'NO TIME LIMIT' : comp.duration < 60 ? `${comp.duration} SECS` : `${Math.floor(comp.duration / 60)} MINS`}</span>
                   </div>
                 </div>
 

@@ -158,7 +158,7 @@ export default function HomePage() {
                     <div className="pt-4 border-t border-white/5 text-xs text-foreground/60 flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
                         <Clock className="w-3.5 h-3.5 text-primary" />
-                        <span>{comp.duration === 0 ? 'No Time Limit' : `${Math.floor(comp.duration / 60)} Minute Test`}</span>
+                        <span>{comp.duration === 0 ? 'No Time Limit' : comp.duration < 60 ? `${comp.duration} Second Test` : `${Math.floor(comp.duration / 60)} Minute Test`}</span>
                       </div>
 
                       <div className="flex items-center gap-1 text-primary font-semibold group-hover:translate-x-1 transition-transform">
