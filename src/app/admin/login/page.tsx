@@ -59,9 +59,14 @@ export default function AdminLoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-foreground/80 mb-2">
-              Admin Security Password
-            </label>
+            <div className="flex justify-between items-end mb-2">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-foreground/80">
+                Admin Security Password
+              </label>
+              <span className="text-xs font-mono text-foreground/50 font-medium">
+                {password.length > 0 ? `${password.length} chars` : ''}
+              </span>
+            </div>
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'}
@@ -69,7 +74,7 @@ export default function AdminLoginPage() {
                 placeholder="Enter password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-background/60 border border-white/10 rounded-lg p-3.5 pr-12 text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-foreground/30 font-mono"
+                className={`w-full bg-background/60 border border-white/10 rounded-lg p-3.5 pr-12 text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-foreground/30 font-sans ${!showPassword && password.length > 0 ? 'text-lg tracking-widest' : ''}`}
               />
               <button
                 type="button"

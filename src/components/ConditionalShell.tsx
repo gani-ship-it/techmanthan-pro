@@ -44,7 +44,7 @@ export default function ConditionalShell({ children }: { children: React.ReactNo
 
           {/* Centered College Name */}
           <div className="hidden lg:flex flex-col items-center text-center mx-4">
-            <span className="text-xs md:text-sm font-extrabold text-white tracking-wider uppercase">Dr.B.B.HEGDE FIRST GRADE COLLEGE</span>
+            <span className="text-xs md:text-sm font-extrabold text-white tracking-wider">Dr.B.B.HEGDE FIRST GRADE COLLEGE</span>
             <span className="text-[9px] md:text-xs text-primary tracking-widest font-bold uppercase">KUNDAPURA</span>
           </div>
 

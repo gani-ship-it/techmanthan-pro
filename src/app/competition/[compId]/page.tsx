@@ -6,7 +6,7 @@ import { db } from '@/lib/firebase';
 import { Competition, Participant } from '@/types';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, UserCheck, ShieldAlert, KeyRound, User, Sparkles, X, School, FileText } from 'lucide-react';
+import { ArrowLeft, UserCheck, ShieldAlert, KeyRound, User, Sparkles, X, School, FileText, Eye, EyeOff } from 'lucide-react';
 
 
 const CLASS_OPTIONS = [
@@ -29,6 +29,7 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
   const [rollNo, setRollNo] = useState('');
   const [studentClass, setStudentClass] = useState(CLASS_OPTIONS[0]);
   const [uniqueId, setUniqueId] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [verifying, setVerifying] = useState(false);
 
@@ -38,6 +39,7 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
     setRollNo('');
     setStudentClass(CLASS_OPTIONS[0]);
     setUniqueId('');
+    setShowPassword(false);
     setErrorMsg('');
     setVerifying(false);
   };
@@ -289,7 +291,7 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
                   required 
                   autoComplete="off"
                   className="w-full glass-input rounded-lg p-3 text-sm outline-none uppercase font-mono tracking-wider"
-                  placeholder="e.g. 101 or 24BCA102"
+                  placeholder="E.G. BCA25015 OR BCA26032"
                   value={rollNo}
                   onChange={(e) => setRollNo(e.target.value)}
                 />
@@ -316,17 +318,27 @@ export default function CompetitionDetails({ params }: { params: { compId: strin
                 <label className="block text-xs font-semibold uppercase tracking-wider text-foreground/80 mb-1.5 flex items-center gap-1.5">
                   <KeyRound className="w-3.5 h-3.5 text-primary" /> Unique Password
                 </label>
-                <input 
-                  type="password" 
-                  required 
-                  autoComplete="new-password"
-                  data-lpignore="true"
-                  data-form-type="other"
-                  className="w-full glass-input rounded-lg p-3 text-sm outline-none font-mono"
-                  placeholder="Enter contest password"
-                  value={uniqueId}
-                  onChange={(e) => setUniqueId(e.target.value)}
-                />
+                <div className="relative">
+                  <input 
+                    type={showPassword ? 'text' : 'password'} 
+                    required 
+                    autoComplete="new-password"
+                    data-lpignore="true"
+                    data-form-type="other"
+                    className={`w-full glass-input rounded-lg p-3 pr-10 text-sm outline-none font-sans ${!showPassword && uniqueId.length > 0 ? 'text-lg tracking-widest' : ''}`}
+                    placeholder="Enter contest password"
+                    value={uniqueId}
+                    onChange={(e) => setUniqueId(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/50 hover:text-primary transition-colors p-1"
+                    aria-label="Toggle password visibility"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               {errorMsg && (
